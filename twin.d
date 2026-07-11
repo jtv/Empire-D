@@ -23,10 +23,8 @@
 import core.sys.windows.windows;
 import core.stdc.stdio;
 import core.stdc.stdlib;
+import std.algorithm.comparison : max;
 import std.file;
-
-int min(int a, int b) { return (a < b) ? a : b; }
-int max(int a, int b) { return (a > b) ? a : b; }
 
 int inhelp;
 immutable string szAppName = "TextWin";

@@ -21,9 +21,13 @@ import std.random;
 alias dir_t = int;		// direction
 alias loc_t = uint;		// location
 
-void setran() { std.random.rand_seed(37, 49); }
-uint random(uint p) { return std.random.rand() % p; }
-uint ranq() { return std.random.rand(); }
+import std.random : Mt19937, uniform;
+
+private Mt19937 rng;
+
+void setran() { rng.seed(37); }           // or combine two seeds with some expression
+uint random(uint p) { return uniform(0, p, rng); }
+uint ranq() { return uniform(0, uint.max, rng); }
 
 const int ERRTERM	= 1;
 

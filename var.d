@@ -28,7 +28,7 @@ import eplayer;
 
 uint noflush = 0;			/* if non-zero then don't flush	*/
 
-Type typx[TYPMAX] =
+Type[TYPMAX] typx =
 [
 	{  5, 6,'A', 0 },
 	{ 10,12,'F',20 },
@@ -53,7 +53,7 @@ int land[MAPMAX] = [0,0,0,1,0,1,1,0,0,0,0,0,0,0,	// etc.
 			    0,1,1,0,0,0,0,0,0,0];
 
 /* Mask table. Index is type (A..B).	*/
-ubyte msk[8] =	[mA,mF,mD,mT,mS,mR,mC,mB];
+ubyte[8] msk =	[mA,mF,mD,mT,mS,mR,mC,mB];
 
 /* direction table, index is -1..7
  *
@@ -67,7 +67,7 @@ int arrow(dir_t dir)
     {
 	assert(-1 <= dir && dir <= 7);
     }
-    body
+    do
     {
 	static int[9] arrow =
 	    [0,1,-Mcolmx,-Mcolmx-1,-Mcolmx-2,-1,Mcolmx,Mcolmx+1,Mcolmx+2];
@@ -90,7 +90,7 @@ ubyte savbeg = 0;		/* start of variable save area		*/
  * Map variables
  */
 
-ubyte map[MAPSIZE] = [0,];	// reference map
+ubyte[MAPSIZE] map = [0,];	// reference map
 int empver = VERSION;		// version number
 //static int mapbas = 0;	// not used
 

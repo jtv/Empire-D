@@ -19,6 +19,9 @@ module maps;
 import empire;
 import var;
 
+import std.algorithm.comparison : max;
+import std.math.algebraic : abs;
+
 /***********************************
  * Count how many As (Fs) are aboard a T (C).
  * Returns:
@@ -51,7 +54,7 @@ int aboard(Unit *u)
 
 int tcaf(Unit *u)
 {			//    A  F  D  T  S  R  C  B
-    static int tcaftab[8] = [-1,-1,-1, A,-1,-1, F,-1];
+    static int[8] tcaftab = [-1,-1,-1, A,-1,-1, F,-1];
 
     return tcaftab[u.typ];
 }
@@ -156,19 +159,3 @@ void chkmov(dir_t r2,int errnum)
 {
   assert(r2 >= -1 && r2 <= 7);
 }
-
-
-/* Miscellaneous
- */
-
-int max(int a, int b)
-{
-  return (a > b) ? a : b;
-}
-
-int abs(int a)
-{
-  return (a < 0) ? -a : a;
-}
-
-

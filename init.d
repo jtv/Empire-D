@@ -15,8 +15,7 @@
  */
 
 
-import std.string;
-
+import core.stdc.string : memset;
 import empire;
 import mapdata;
 import var;

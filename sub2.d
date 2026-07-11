@@ -17,8 +17,6 @@
 
 module sub2;
 
-import std.string;
-
 import empire;
 import var;
 

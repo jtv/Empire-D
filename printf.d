@@ -23,6 +23,7 @@
 
 import core.stdc.stdio;
 import core.stdc.stdlib;
+import core.stdc.stdlib : alloca;
 import core.stdc.stdarg : va_list, va_start, va_end;
 import std.string;
 import std.file;
@@ -33,7 +34,7 @@ const int LOG = 1;		// disable logging by setting this to 0
 
 version (Windows)
 {
-    char logfile[] = r"\empire.log";
+    immutable string logfile = r"\empire.log";
 }
 version (linux)
 {
