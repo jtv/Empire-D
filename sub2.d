@@ -31,7 +31,7 @@ in
 {
     assert(chkloc(loc));
 }
-body
+do
 { int i;
 
   for (i = CITMAX; i--;)
@@ -58,7 +58,7 @@ in
     assert(ty < TYPMAX);
     assert(pn <= PLYMAX);
 }
-body
+do
 { int i;
   Unit *u;
 

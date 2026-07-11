@@ -17,8 +17,8 @@
 
 module text;
 
-import std.c.stdio;
-import std.ctype;
+import core.stdc.stdio;
+import std.ascii;
 
 import empire;
 import printf;
@@ -154,7 +154,7 @@ struct Text
 	c = inbuf;
 	inbuf = -1;
 
-	return std.ctype.toupper(cast(dchar)c);
+	return std.ascii.toUpper(cast(char)c);
     }
 
     void TTunget(int c)		// put character c in input

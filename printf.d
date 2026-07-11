@@ -21,12 +21,13 @@
  * if the program subsequently crashes.
  */
 
-import std.c.stdio;
-import std.c.stdlib;
+import core.stdc.stdio;
+import core.stdc.stdlib;
+import core.stdc.stdarg : va_list, va_start, va_end;
 import std.string;
 import std.file;
 
-alias void* va_list;
+
 
 const int LOG = 1;		// disable logging by setting this to 0
 
@@ -36,7 +37,7 @@ version (Windows)
 }
 version (linux)
 {
-    char logfile[] = "/var/log/empire.log";
+    immutable string logfile = "/var/log/empire.log";
 }
 
 /*********************************************
@@ -85,7 +86,7 @@ int VPRINTF(char* format, va_list args)
 {
     if (printf_logging != Plog.TOBITBUCKET)
     {
-	char buffer[128];
+	char[128] buffer;
 	char* p;
 	uint psize;
 	int count;
@@ -130,10 +131,12 @@ int PRINTF(char* format, ...)
     if (printf_logging != Plog.TOBITBUCKET)
     {
 	va_list ap;
-	//va_start(ap, format);
-	ap = cast(va_list)(cast(void*)format + format.sizeof);
+	
+
+	va_start(ap, format);
 	result = VPRINTF(format,ap);
-	//va_end(ap);
+	va_end(ap);
+	
     }
     return result;
 }

@@ -4,8 +4,9 @@
 // Compile with Digital Mars compiler www.digitalmars.com
 // www.classicempire.com
 
-import std.c.stdlib;
-import std.c.windows.windows;
+import core.stdc.stdlib;
+import core.sys.windows.windows;
+import core.runtime : Runtime;
 
 import empire;
 import winemp;
@@ -15,11 +16,6 @@ import twin;
 import init;
 
 /********************************************************/
-extern (C) void gc_init();
-extern (C) void gc_term();
-extern (C) void _minit();
-extern (C) void _moduleCtor();
-extern (C) void _moduleUnitTests();
 
 extern (Windows)
 int WinMain(HINSTANCE hInstance,
@@ -29,26 +25,27 @@ int WinMain(HINSTANCE hInstance,
 {
     int result;
 
-    gc_init();			// initialize garbage collector
+    Runtime.initialize();		// initialize runtime
     _minit();			// initialize module constructor table
 
     try
     {
-	_moduleCtor();		// call module constructors
-	_moduleUnitTests();	// run unit tests (optional)
+
+
 
 	// insert user code here
 	result = doit(hInstance, hPrevInstance, lpCmdLine, nCmdShow);
     }
 
-    catch (Object o)		// catch any uncaught exceptions
+    catch (Throwable o)		// catch any uncaught exceptions
     {
-	MessageBoxA(null, cast(char *)o.toString(), "Error",
+	import std.string : toStringz;
+	    MessageBoxA(null, o.message.toStringz(), "Error",
 		    MB_OK | MB_ICONEXCLAMATION);
 	result = 0;		// failed
     }
 
-    gc_term();			// run finalizers; terminate garbage collector
+    Runtime.terminate();		// terminate runtime
     return result;
 }
 /********************************************************/
@@ -141,7 +138,7 @@ Global global;
 int doit(HANDLE hInstance, HANDLE hPrevInstance,
                     LPSTR lpszCmdLine, int nCmdShow)
 {
-    static   char szAppName [] = "Empire";
+    static immutable string szAppName = "Empire";
     HWND     hwnd;
     MSG      msg;
     WNDCLASS wndclass;
@@ -157,7 +154,7 @@ int doit(HANDLE hInstance, HANDLE hPrevInstance,
         wndclass.hCursor       = LoadCursorA (null, IDC_ARROW);
         wndclass.hbrBackground = GetStockObject (WHITE_BRUSH);
         wndclass.lpszMenuName  = szAppName;
-        wndclass.lpszClassName = szAppName;
+        wndclass.lpszClassName = szAppName.ptr;
 
         RegisterClassA(&wndclass);
 
@@ -168,7 +165,7 @@ int doit(HANDLE hInstance, HANDLE hPrevInstance,
 
 version(none)
 {
-    hwnd = CreateWindowA(szAppName, "Empire: Wargame of the Century",
+    hwnd = CreateWindowA(szAppName.ptr, "Empire: Wargame of the Century",
                         WS_OVERLAPPEDWINDOW,
                           CW_USEDEFAULT, CW_USEDEFAULT,
                           124, 160 + 34 + 20,
@@ -176,7 +173,7 @@ version(none)
 }
 else
 {
-    hwnd = CreateWindowA(szAppName, "Empire: Wargame of the Century",
+    hwnd = CreateWindowA(szAppName.ptr, "Empire: Wargame of the Century",
 			WS_OVERLAPPEDWINDOW,
                           CW_USEDEFAULT, CW_USEDEFAULT,
                           CW_USEDEFAULT, CW_USEDEFAULT,
@@ -246,7 +243,7 @@ extern (Windows) int WndProc(HWND hwnd, uint message, WPARAM wParam,
     // File dialog box
     static char  szFileName [_MAX_PATH];
     static char  szTitleName[_MAX_FNAME + _MAX_EXT];
-    static char *szFilter[] = [ "Empire Files (*.EMP)", "*.emp", "" ];
+    static char*[] szFilter = [ "Empire Files (*.EMP)", "*.emp", "" ];
 
     switch (message)
     {

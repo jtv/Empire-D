@@ -15,8 +15,8 @@
  */
 
 
-import std.c.stdlib;
-import std.c.time;
+import core.stdc.stdlib;
+import core.stdc.time;
 
 import empire;
 import eplayer;
@@ -325,39 +325,39 @@ struct Display
     {   int type,abd;
 	Text *t = &text;
 	char *y;
-	char buffer[100];
+	char[100] buffer;
 
 	if (!t.watch)
 	    return;
 	t.curs(text.DS(0));
 	if (u.typ == A)
 	{
-	    sprintf(buffer,"Your army at %u,%u.", ROW(u.loc), COL(u.loc));
+	    sprintf(buffer.ptr,"Your army at %u,%u.", ROW(u.loc), COL(u.loc));
 	}
 	else
 	{
-	    char buf[10+1];
+	    char[11] buf;
 
 	    y = text.narrow ? "Yr" : "Your";
-	    sprintf(buffer,"%s %s at %u,%u.",y,nmes_p(u.typ,1),ROW(u.loc),COL(u.loc));
+	    sprintf(buffer.ptr,"%s %s at %u,%u.",y,nmes_p(u.typ,1),ROW(u.loc),COL(u.loc));
 
 	    if ((type = tcaf(u)) >= 0)		// if we have a T or C
-	    {   char buf[10];
+	    {   char[10] buf;
 
 		abd = aboard(u);		// # aboard
-		sprintf(buf," %d ",abd);
-		strcat(buffer,buf);
-		strcat(buffer,nmes_p(type,abd));
-		strcat(buffer," aboard.");
+		sprintf(buf.ptr," %d ",abd);
+		strcat(buffer.ptr,buf);
+		strcat(buffer.ptr,nmes_p(type,abd));
+		strcat(buffer.ptr," aboard.");
 	    }
 	    if (u.typ == F)		// if a fighter
-		strcat(buffer," Range: ");
+		strcat(buffer.ptr," Range: ");
 	    else				// else ship
-		strcat(buffer," Hits: ");
-	    sprintf(buf,"%d",u.hit);
-	    strcat(buffer,buf);
+		strcat(buffer.ptr," Hits: ");
+	    sprintf(buf.ptr,"%d",u.hit);
+	    strcat(buffer.ptr,buf);
 	}
-	t.smes(buffer);
+	t.smes(buffer.ptr);
 	t.deleol();
 	t.curs(text.DS(1));
 	fncprt(u);				// print function
@@ -375,7 +375,7 @@ struct Display
     }
     body
     {
-	static char *msg[8][2] =
+	static char*[8][2] msg =
 	[   [	"army",			"armies"		],
 	    [   "fighter",		"fighters"		],
 	    [   "destroyer",		"destroyers"		],
@@ -387,7 +387,7 @@ struct Display
 	];
 
 	// For narrow displays
-	static char msgn[8][2][3] =
+	static char[3][2][8] msgn =
 	[
 	    [   "A","As" ],
 	    [   "F","Fs" ],
@@ -400,7 +400,7 @@ struct Display
 	];
 
 	if (text.narrow)
-	    return (num == 1) ? msgn[type][0] : msgn[type][1];
+	    return (num == 1) ? msgn[type][0].ptr : msgn[type][1].ptr;
 	else
 	    return (num == 1) ? msg[type][0] : msg[type][1];
     }
@@ -663,7 +663,7 @@ struct Display
      */
 
     void fncprt(Unit *u)
-    {   static char dtab[9] = "DEWQAZXC";	// directions
+    {   static char[9] dtab = "DEWQAZXC";	// directions
 	Player *p = Player.get(u.own);
 	Text *t = &text;
 
@@ -824,7 +824,7 @@ struct Display
      */
 
     void valcmd(int mode)
-    {   static char *valmsg[] =
+    {   static char*[] valmsg =
 	[   "valcmd()",			// just a place holder
 	    "QWEADZXC,FGHIKLNRSUVY<>,space", // Move
 	    "QWEADZXC,FGHIKLNPRSU<>,esc",	// Survey

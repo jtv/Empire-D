@@ -18,8 +18,8 @@ module empire;
 
 import std.random;
 
-alias int dir_t;		// direction
-alias uint loc_t;		// location
+alias dir_t = int;		// direction
+alias loc_t = uint;		// location
 
 void setran() { std.random.rand_seed(37, 49); }
 uint random(uint p) { return std.random.rand() % p; }

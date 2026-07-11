@@ -17,7 +17,7 @@
 
 module var;
 
-import std.c.stdio;
+import core.stdc.stdio;
 
 import empire;
 import eplayer;
@@ -69,7 +69,7 @@ int arrow(dir_t dir)
     }
     body
     {
-	static int arrow[9] =
+	static int[9] arrow =
 	    [0,1,-Mcolmx,-Mcolmx-1,-Mcolmx-2,-1,Mcolmx,Mcolmx+1,Mcolmx+2];
 
 	return arrow[dir + 1];
@@ -103,14 +103,14 @@ int tamper = false;		/* true means prog has been tampered with */
  */
 
 uint cittop = 0;		/* actual number of cities		*/
-City city[CITMAX];
+City[CITMAX] city;
 
 /*
  * Unit variables.
  */
 
 uint unitop = 0;		/* unitop >= topmost unit number	*/
-Unit unit[UNIMAX];
+Unit[UNIMAX] unit;
 
 /*
  * Player variables.
@@ -121,7 +121,7 @@ int	numply = 0,		/* default number of players playing	*/
 	concede = false,	/* set to true if computer concedes game */
 	numleft = 0;		/* number of players left in the game	*/
 
-Player player[PLYMAX + 1];
+Player[PLYMAX + 1] player;
 
 ubyte savend = 0;		/* so we can find end of variable space	*/
 

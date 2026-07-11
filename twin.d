@@ -20,16 +20,16 @@
                 (c) Charles Petzold, 1992
   -----------------------------------------------------*/
 
-import std.c.windows.windows;
-import std.c.stdio;
-import std.c.stdlib;
+import core.sys.windows.windows;
+import core.stdc.stdio;
+import core.stdc.stdlib;
 import std.file;
 
 int min(int a, int b) { return (a < b) ? a : b; }
 int max(int a, int b) { return (a > b) ? a : b; }
 
 int inhelp;
-char szAppName[] = "TextWin" ;
+immutable string szAppName = "TextWin";
 
 void helpRegister(HANDLE hInstance)
 {
@@ -44,7 +44,7 @@ void helpRegister(HANDLE hInstance)
     wndclass.hCursor       = LoadCursorA(null, IDC_ARROW) ;
     wndclass.hbrBackground = GetStockObject(WHITE_BRUSH) ;
     wndclass.lpszMenuName  = null ;
-    wndclass.lpszClassName = szAppName ;
+    wndclass.lpszClassName = szAppName.ptr;
 
     RegisterClassA(&wndclass) ;
 }
@@ -58,7 +58,7 @@ void help(HANDLE hInstance)
      if (inhelp)
 	return;
      inhelp++;
-     hwnd = CreateWindowA (szAppName, "Empire Help",
+     hwnd = CreateWindowA (szAppName.ptr, "Empire Help",
                           WS_OVERLAPPEDWINDOW | WS_VSCROLL | WS_HSCROLL,
                           CW_USEDEFAULT, CW_USEDEFAULT,
                           CW_USEDEFAULT, CW_USEDEFAULT,
