@@ -52,23 +52,23 @@ struct Player
     int modsave;
 
     // Computer strategy
-    ubyte target[CITMAX];	// There is a TARGET byte for each city.
+    ubyte[CITMAX] target;	// There is a TARGET byte for each city.
 				// If the computer knows about the city
 				// but doesn't own it, it is true.
 
-    uint troopt[6][5];		// The 6 rows correspond to the ships
+    uint[5][6] troopt;		// The 6 rows correspond to the ships
 				// DTSRCB in that order. The 5 columns
 				// correspond to locations of enemy ships
 				// discovered, in order from newest to
 				// oldest sighting.
 
-    uint loci[LOCMAX];		// Locations of enemy armies sighted,
+    uint[LOCMAX] loci;		// Locations of enemy armies sighted,
 				// from most to least recent.
 
-    uint numuni[TYPMAX];	// # of units of each type
+    uint[TYPMAX] numuni;	// # of units of each type
     uint numown;		// # of our owned cities
     uint numtar;		// # of cities listed as targets
-    uint numphs[TYPMAX];	// # of cities producing each type of unit
+    uint[TYPMAX] numphs;	// # of cities producing each type of unit
 
     /*************************************
      * Give time slice to a player.
@@ -475,7 +475,7 @@ struct Player
      * for him also.
      */
 
-    static int dirtab[9] = [3,2,1,4,-1,0,5,6,7];	// to minimize chars
+    static int[9] dirtab = [3,2,1,4,-1,0,5,6,7];	// to minimize chars
 							// sent to screen
     void sensor(loc_t loc)
     {

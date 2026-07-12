@@ -18,6 +18,7 @@
 module var;
 
 import core.stdc.stdio;
+import core.stdc.stdlib : calloc, free;
 
 import empire;
 import eplayer;
@@ -139,7 +140,7 @@ void init_var()
 	    free(player[i].map);
 
 	if (player[i].display)
-	    delete player[i].display;
+	    player[i].display = null;
     }
 
     memset(&savbeg, 0, &savend - &savbeg);

@@ -23,7 +23,7 @@
 import core.sys.windows.windows;
 import core.stdc.stdio;
 import core.stdc.stdlib;
-import std.algorithm.comparison : max;
+import std.algorithm.comparison : max, min;
 import std.file;
 
 int inhelp;

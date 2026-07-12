@@ -26,7 +26,6 @@ int WinMain(HINSTANCE hInstance,
     int result;
 
     Runtime.initialize();		// initialize runtime
-    _minit();			// initialize module constructor table
 
     try
     {
@@ -99,7 +98,7 @@ struct Global
     HPEN hPen;
 
     // Bitmaps
-    HANDLE mapvaltab[MAPMAX];
+    HANDLE[MAPMAX] mapvaltab;
     HANDLE unknown10;
 
     Player *player;	// which player is being displayed
@@ -153,7 +152,7 @@ int doit(HANDLE hInstance, HANDLE hPrevInstance,
         wndclass.hIcon         = LoadIconA(hInstance, "About");
         wndclass.hCursor       = LoadCursorA (null, IDC_ARROW);
         wndclass.hbrBackground = GetStockObject (WHITE_BRUSH);
-        wndclass.lpszMenuName  = szAppName;
+        wndclass.lpszMenuName  = szAppName.ptr;
         wndclass.lpszClassName = szAppName.ptr;
 
         RegisterClassA(&wndclass);
@@ -241,8 +240,8 @@ extern (Windows) int WndProc(HWND hwnd, uint message, WPARAM wParam,
     double newscaley;
 
     // File dialog box
-    static char  szFileName [_MAX_PATH];
-    static char  szTitleName[_MAX_FNAME + _MAX_EXT];
+    static char[_MAX_PATH] szFileName ;
+    static char[_MAX_FNAME + _MAX_EXT] szTitleName;
     static char*[] szFilter = [ "Empire Files (*.EMP)", "*.emp", "" ];
 
     switch (message)

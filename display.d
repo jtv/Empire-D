@@ -346,7 +346,7 @@ struct Display
 
 		abd = aboard(u);		// # aboard
 		sprintf(buf.ptr," %d ",abd);
-		strcat(buffer.ptr,buf);
+		strcat(buffer.ptr,buf.ptr);
 		strcat(buffer.ptr,nmes_p(type,abd));
 		strcat(buffer.ptr," aboard.");
 	    }
@@ -355,7 +355,7 @@ struct Display
 	    else				// else ship
 		strcat(buffer.ptr," Hits: ");
 	    sprintf(buf.ptr,"%d",u.hit);
-	    strcat(buffer.ptr,buf);
+	    strcat(buffer.ptr,buf.ptr);
 	}
 	t.smes(buffer.ptr);
 	t.deleol();
@@ -373,7 +373,7 @@ struct Display
     {
 	assert(0 <= type && type < TYPMAX);
     }
-    body
+    do
     {
 	static char*[8][2] msg =
 	[   [	"army",			"armies"		],

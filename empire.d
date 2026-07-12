@@ -16,8 +16,6 @@
 
 module empire;
 
-import std.random;
-
 alias dir_t = int;		// direction
 alias loc_t = uint;		// location
 
@@ -27,7 +25,7 @@ private Mt19937 rng;
 
 void setran() { rng.seed(37); }           // or combine two seeds with some expression
 uint random(uint p) { return uniform(0, p, rng); }
-uint ranq() { return uniform(0, uint.max, rng); }
+uint ranq() { return uniform!uint(rng); }
 
 const int ERRTERM	= 1;
 

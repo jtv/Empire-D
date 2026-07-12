@@ -23,7 +23,6 @@
 
 import core.stdc.stdio;
 import core.stdc.stdlib;
-import core.stdc.stdlib : alloca;
 import core.stdc.stdarg : va_list, va_start, va_end;
 import std.string;
 import std.file;

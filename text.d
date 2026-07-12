@@ -29,7 +29,7 @@ extern (C) void sound_click();
 const int VBUFROWS	= 5;
 const int VBUFCOLS	= 80;
 
-char vbuffer[5][80 + 1];
+char[80 + 1][5] vbuffer;
 
 // For each text mode display, which can be either a tty or the
 // PC screen in text mode.
@@ -313,11 +313,14 @@ struct Text
      */
 
     void vsmes(char* format,...)
-    {   char buffer[100];
+    {   char[100] buffer;
 	int count;
+	va_list args;
 
-	count = _vsnprintf(buffer,buffer.sizeof,format,cast(va_list)(&format + 1));
-	smes(buffer);
+	va_start(args, format)
+	count = _vsnprintf(buffer.ptr,buffer.sizeof,format,args);
+	va_end(args);
+	smes(buffer.ptr);
     }
 
     /****************************
