@@ -306,9 +306,9 @@ extern (Windows) int WndProc(HWND hwnd, uint message, WPARAM wParam,
 	    global.ofn.lStructSize       = OPENFILENAMEA.sizeof;
 	    global.ofn.hwndOwner         = hwnd;
 	    global.ofn.lpstrFilter       = szFilter[0];
-	    global.ofn.lpstrFile         = szFileName;
+	    global.ofn.lpstrFile         = szFileName.ptr;
 	    global.ofn.nMaxFile          = _MAX_PATH;
-	    global.ofn.lpstrFileTitle    = szTitleName;
+	    global.ofn.lpstrFileTitle    = szTitleName.ptr;
 	    global.ofn.nMaxFileTitle     = _MAX_FNAME + _MAX_EXT;
 	    global.ofn.lpstrDefExt       = "emp";
 
@@ -859,7 +859,7 @@ else
 		    SelectObject(hdc, global.hFont);
 		    for (i = 0; i < 4; i++)
 		    {
-			TextOutA(hdc, 0, global.cyChar * i, vbuffer[i], strlen(vbuffer[i]));
+			TextOutA(hdc, 0, global.cyChar * i, vbuffer[i].ptr, strlen(vbuffer[i].ptr));
 		    }
 		}
 	    }

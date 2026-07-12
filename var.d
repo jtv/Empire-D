@@ -19,6 +19,7 @@ module var;
 
 import core.stdc.stdio;
 import core.stdc.stdlib : calloc, free;
+import core.stdc.string : memset;
 
 import empire;
 import eplayer;
@@ -76,8 +77,8 @@ int arrow(dir_t dir)
 	return arrow[dir + 1];
     }
 
-int mapgen = false;		/* true if we're running MAPGEN.EXE	*/
-int savegame = false;		/* set to true if we're to save the game */
+bool mapgen = false;		/* true if we're running MAPGEN.EXE	*/
+bool savegame = false;		/* set to true if we're to save the game */
 
 /*************************************
  * Variables saved across game saves.
@@ -96,8 +97,8 @@ int empver = VERSION;		// version number
 //static int mapbas = 0;	// not used
 
 uint seedhi=0,seedlo=0;	/* seeds for random()			*/
-int overpop = false;		/* true means unit arrays are full	*/
-int tamper = false;		/* true means prog has been tampered with */
+bool overpop = false;		/* true means unit arrays are full	*/
+bool tamper = false;		/* true means prog has been tampered with */
 
 /*
  * City variables.
@@ -118,9 +119,9 @@ Unit[UNIMAX] unit;
  */
 
 int	numply = 0,		/* default number of players playing	*/
-	plynum = 0,		/* which player is playing, 1..numply	*/
-	concede = false,	/* set to true if computer concedes game */
-	numleft = 0;		/* number of players left in the game	*/
+	plynum = 0;		/* which player is playing, 1..numply	*/
+bool concede = false;	/* set to true if computer concedes game */
+int	numleft = 0;		/* number of players left in the game	*/
 
 Player[PLYMAX + 1] player;
 

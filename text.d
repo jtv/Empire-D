@@ -17,6 +17,7 @@
 
 module text;
 
+import core.stdc.stdarg;
 import core.stdc.stdio;
 import std.ascii;
 
@@ -283,7 +284,7 @@ struct Text
      * Send string to output.
      */
 
-    void imes(char *p)
+    void imes(const(char) *p)
     {
       //printf("imes('%s')\n",p);
       if (watch)
@@ -298,7 +299,7 @@ struct Text
      * Send string to output.
      */
 
-    void smes(char *p)
+    void smes(const(char) *p)
     {
       //printf("smes('%s')\n",p);
       if (watch)
@@ -312,12 +313,12 @@ struct Text
      * Formatted print.
      */
 
-    void vsmes(char* format,...)
+    void vsmes(const(char)* format,...)
     {   char[100] buffer;
 	int count;
 	va_list args;
 
-	va_start(args, format)
+	va_start(args, format);
 	count = _vsnprintf(buffer.ptr,buffer.sizeof,format,args);
 	va_end(args);
 	smes(buffer.ptr);
