@@ -19,7 +19,14 @@ module move;
 
 import empire;
 import eplayer;
+import maps;
 import sub2;
+import text;
+import var;
+
+import core.stdc.stdio : printf;
+import core.stdc.stdlib : exit;
+import core.stdc.string : memset;
 
 const int HYSTERESIS = 10;
 
@@ -114,7 +121,7 @@ void hrdprd(Player *p)
 	p.sensor(c.loc);		// keep map up to date
 	if (c.fnd > p.round)		/* if unit is not produced yet	*/
 	    continue;
-	if (newuni(&u,c.loc,c.phs,p.num))	// create new unit
+	if (newuni(&u,c.loc,c.phs,cast(ubyte) p.num))	// create new unit
 	{
 	    c.fnd = p.round + typx[c.phs].prodtime;
 	    p.display.produce(c);
@@ -141,7 +148,7 @@ void chkwin()
   Text *t;
   Player *p;
 
-  memset(n,0,n.sizeof);
+  memset(n.ptr,0,n.sizeof);
 
   for (i = CITMAX; i--;)
 	n[city[i].own]++;		// inc number owned
@@ -186,11 +193,12 @@ void done(int i)
 {
     version (Windows)
     {
+	win32close();
+	exit(i);
     }
     else
     {
 	printf("\n");
-	win32close();
 	exit(i);
     }
 }
