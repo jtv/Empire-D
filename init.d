@@ -63,7 +63,8 @@ int selmap()
     // Use internal maps
     int j;
     ubyte *d;
-    int i,a,c,n;
+    int i,n;
+    ubyte a, c;
 
     j = empire.random(5);
     d = cast(ubyte *)(*mapdata.mapdata[j]);
@@ -92,7 +93,8 @@ int selmap()
  */
 
 void flip()
-{ int i,j,c;
+{ int i,j;
+  ubyte c;
 
   i = j = MAPSIZE / 2;
   while (i--)
@@ -108,7 +110,8 @@ void flip()
  */
 
 void klip()
-{ int row,i,j,c;
+{ int row,i,j;
+  ubyte c;
 
   row = 0;
   while (row < MAPSIZE)
