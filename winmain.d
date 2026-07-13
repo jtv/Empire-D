@@ -30,7 +30,10 @@ import init;
 
 void invalidateSector()
 {
-    InvalidateRect(global.hwnd, &global.sector, false);
+    version (Windows)
+    {
+	InvalidateRect(global.hwnd, &global.sector, false);
+    }
 }
 
 /*************************************
@@ -40,32 +43,65 @@ void invalidateSector()
 
 void invalidateLoc(loc_t loc)
 {
-    RECT rect;
-    int r, c;
-    int dx;
-    int dy;
-    DWORD mode;
+    version (Windows)
+    {
+	RECT rect;
+	int r, c;
+	int dx;
+	int dy;
+	DWORD mode;
 
 //PRINTF("invalidateLoc(loc = %d)\n", loc);
-    assert(loc < MAPSIZE);
+	assert(loc < MAPSIZE);
 
-    r = ROW(loc) - ROW(global.ulcorner);
-    c = COL(loc) - COL(global.ulcorner);
-    dx = cast(int)(10 * global.scalex);
-    dy = cast(int)(10 * global.scaley);
+	r = ROW(loc) - ROW(global.ulcorner);
+	c = COL(loc) - COL(global.ulcorner);
+	dx = cast(int)(10 * global.scalex);
+	dy = cast(int)(10 * global.scaley);
 
-    rect.left = c * dx - global.offsetx;
-    rect.top = 40 + r * dy - global.offsety;
-    rect.right = rect.left + dx;
-    rect.bottom = rect.top + dy;
+	rect.left = c * dx - global.offsetx;
+	rect.top = 40 + r * dy - global.offsety;
+	rect.right = rect.left + dx;
+	rect.bottom = rect.top + dy;
 
-    InvalidateRect(global.hwnd, &rect, false);
+	InvalidateRect(global.hwnd, &rect, false);
+    }
+}
+
+
+/******************************
+ * Play a sound.
+ *
+ * If sync is true, play it just once.  If false, loop forever.
+ */
+void play_sample(const(char) *path, bool sync)
+{
+    version (Windows)
+    {
+	UpdateWindow(global.hwnd);
+	if (global.speaker)
+	{
+	    int repetition = (sync ? SND_SYNC : (SND_ASYNC | SND_NOSTOP));
+	    PlaySoundA(path, null, SND_FILENAME, repetition);
+	}
+    }
+}
+
+
+/******************************
+ * Click the speaker.
+ */
+
+extern (C) void sound_click()
+{
+    play_sample("click.wav", false);
 }
 
 
 /******************************
  * Various sounds.
  */
+
 void sound_gun()
 {
     play_sample("gun_1.wav", true);
@@ -104,27 +140,27 @@ void sound_crushed()
 
 void sound_flyby()
 {
-    play_sample("flyby.wav", null, true);
+    play_sample("flyby.wav", true);
 }
 
 void sound_fcrash()
 {
-    play_sample("explode.wav", null, true);
+    play_sample("explode.wav", true);
 }
 
 void sound_fuel()
 {
-    play_sample("fuel.wav", null, true);
+    play_sample("fuel.wav", true);
 }
 
 void sound_taps()
 {
-    play_sample("taps.wav", null, true);
+    play_sample("taps.wav", true);
 }
 
 void sound_ackack()
 {
-    play_sample("ackack1.wav", null, true);
+    play_sample("ackack1.wav", true);
 }
 
 
@@ -1274,35 +1310,6 @@ extern (C) void win_flush()
     InvalidateRect(global.hwnd, &global.text, false);
     UpdateWindow(global.hwnd);
 }
-
-/******************************
- * Play a sound.
- *
- * If sync is true, play it just once.  If false, loop forever.
- */
-void play_sample(const(char) *path, bool sync)
-{
-    version (Windows)
-    {
-	UpdateWindow(global.hwnd);
-	if (global.speaker)
-	{
-	    int repetition = (sync ? SND_SYNC : (SND_ASYNC | SND_NOSTOP));
-	    PlaySoundA(path, null, SND_FILENAME, repetition);
-	}
-    }
-}
-
-
-/******************************
- * Click the speaker.
- */
-
-extern (C) void sound_click()
-{
-    play_sample("click.wav", false);
-}
-
 
 /***********************************
  * Setup for Windows.
