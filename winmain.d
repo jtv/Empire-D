@@ -4,6 +4,7 @@
 // Compile with Digital Mars compiler www.digitalmars.com
 // www.classicempire.com
 
+version (Windows):
 import core.stdc.stdlib;
 import core.sys.windows.windows;
 import core.runtime : Runtime;
@@ -280,23 +281,11 @@ extern (Windows) int WndProc(HWND hwnd, uint message, WPARAM wParam,
 	    // About dialog box
 	    //hInstance = ((LPCREATESTRUCT) lParam)->hInstance;
 
-	    version (0)
-	    {
-		global.lpfnAboutDlgProc = cast(DLGPROC) &AboutDlgProc;
-		global.lpfnCitySelectDlgProc = cast(DLGPROC) &CitySelectDlgProc;
-		global.lpfnInitDlgProc = cast(DLGPROC) &InitDlgProc;
-	    }
-	    else
-	    {
-		global.lpfnAboutDlgProc = cast(DLGPROC) MakeProcInstance (cast(FARPROC) AboutDlgProc,
-						    global.hinst);
+	    global.lpfnAboutDlgProc = cast(DLGPROC) MakeProcInstance (cast(FARPROC) AboutDlgProc, global.hinst);
 
-		global.lpfnCitySelectDlgProc = cast(DLGPROC) MakeProcInstance (cast(FARPROC) CitySelectDlgProc,
-						    global.hinst);
+	    global.lpfnCitySelectDlgProc = cast(DLGPROC) MakeProcInstance (cast(FARPROC) CitySelectDlgProc, global.hinst);
 
-		global.lpfnInitDlgProc = cast(DLGPROC) MakeProcInstance (cast(FARPROC) InitDlgProc,
-						    global.hinst) ;
-	    }
+	    global.lpfnInitDlgProc = cast(DLGPROC) MakeProcInstance (cast(FARPROC) InitDlgProc, global.hinst) ;
 
 	    // Menu
 	    global.hMenu = LoadMenuA(global.hinst, "PopMenu");
