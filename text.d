@@ -20,7 +20,6 @@ module text;
 import core.stdc.stdarg;
 import core.stdc.stdio;
 import std.ascii;
-version (Posix) import text_ncurses;
 
 import empire;
 import printf;
