@@ -68,10 +68,10 @@ void printf_tobitbucket()
     printf_logging = Plog.TOBITBUCKET;
 }
 
-void LogfileAppend(char* buffer)
+void LogfileAppend(char* buffer, size_t len)
 {
     if (printf_logging == Plog.TOLOGFILE)
-	append(logfile, buffer[0 .. strlen(buffer)]);
+	append(logfile, buffer[0 .. len]);
     else
     {
 	fputs(buffer, stdout);
@@ -119,7 +119,7 @@ int VPRINTF(immutable scope char* format, va_list args)
 	    p = cast(char *) alloca(psize * buffer[0].sizeof);	// buffer too small, try again with larger size
 	}
 
-	LogfileAppend(p);
+	LogfileAppend(p, count);
     }
     return 0;
 }

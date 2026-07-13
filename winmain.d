@@ -1025,7 +1025,10 @@ else
 		    SelectObject(hdc, global.hFont);
 		    for (i = 0; i < 4; i++)
 		    {
-			TextOutA(hdc, 0, global.cyChar * i, vbuffer[i].ptr, strlen(vbuffer[i].ptr));
+			// Note: vbuffer is a fixed-size buffer capped at VBUFCOLS;
+			// ncols must never exceed VBUFCOLS or this reads out of bounds
+			// (TextOutA takes a raw pointer, so D's slice bounds checks don't apply here).
+			TextOutA(hdc, 0, global.cyChar * i, vbuffer[i].ptr, global.player.display.text.ncols);
 		    }
 		}
 	    }
