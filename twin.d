@@ -20,6 +20,8 @@
                 (c) Charles Petzold, 1992
   -----------------------------------------------------*/
 
+version (Windows):
+
 import core.sys.windows.windows;
 import core.stdc.stdio;
 import core.stdc.stdlib;
