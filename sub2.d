@@ -18,7 +18,10 @@
 module sub2;
 
 import empire;
+import maps : chkloc;
 import var;
+
+import core.stdc.string : memset;
 
 /*********************************
  * Return city number given city location.
@@ -49,7 +52,7 @@ do
  *	false	if overpopulation
  */
 
-int newuni(Unit **pu,loc_t loc,uint ty,uint pn)
+int newuni(Unit **pu,loc_t loc,ubyte ty,ubyte pn)
 in
 {
     assert(chkloc(loc));
@@ -70,7 +73,7 @@ do
 	    u.loc = loc;
 	    u.own = pn;
 	    u.typ = ty;
-	    u.hit = typx[ty].hittab;
+	    u.hit = cast(int) typx[ty].hittab;
 	    u.dir = (i & 1) ? 1 : -1;
 	    *pu = u;			// return unit # created
 	    return true;		// successful

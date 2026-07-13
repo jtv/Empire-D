@@ -208,7 +208,7 @@ struct Type
     ubyte prodtime;	// production times
     ubyte phstart;	// starting production times
     char unichr;	// character representation for city phase purposes
-    int hittab;		// hits left (value for F is fuel, for A is 0
+    ubyte hittab;	// hits left (value for F is fuel, for A is 0
 			// for computer strategy)
 };
 
