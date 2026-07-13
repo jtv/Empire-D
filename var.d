@@ -55,7 +55,7 @@ int[MAPMAX] land = [0,0,0,1,0,1,1,0,0,0,0,0,0,0,	// etc.
 			    0,1,1,0,0,0,0,0,0,0];
 
 /* Mask table. Index is type (A..B).	*/
-ubyte[8] msk =	[mA,mF,mD,mT,mS,mR,mC,mB];
+immutable ubyte[8] msk =	[mA,mF,mD,mT,mS,mR,mC,mB];
 
 /* direction table, index is -1..7
  *
