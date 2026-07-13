@@ -21,10 +21,10 @@
  * if the program subsequently crashes.
  */
 
-import core.stdc.stdio : vsnprintf;
-version (Windows) import core.stdc.stdio : _vsnprintf;
-import core.stdc.stdarg : va_list, va_start, va_end;
-import core.stdc.stdlib;
+import core.stdc.stdarg : va_list, va_start, va_end, va_arg;
+import core.stdc.stdlib : exit;
+import std.array : Appender;
+import std.conv : to;
 import std.file : append;
 import std.stdio : stdout;
 
@@ -69,15 +69,75 @@ void printf_tobitbucket()
     printf_logging = Plog.TOBITBUCKET;
 }
 
-void LogfileAppend(char* buffer, size_t len)
+void LogfileAppend(const(char)[] msg)
 {
     if (printf_logging == Plog.TOLOGFILE)
-	append(logfile, buffer[0 .. len]);
+	append(logfile, msg);
     else
     {
-	stdout.rawWrite(buffer[0 .. len]);
+	stdout.rawWrite(msg);
 	stdout.flush();
     }
+}
+
+/*********************************************
+ * Minimal printf()-style formatter that pulls arguments directly out of
+ * a C-ABI va_list, using core.stdc.stdarg.va_arg (which already handles
+ * the per-platform calling-convention details). This replaces the C
+ * library's vsnprintf/_vsnprintf, while keeping VPRINTF's/PRINTF's
+ * C-compatible signatures unchanged, so no caller needs to change.
+ *
+ * Only the specifiers actually used anywhere in this codebase are
+ * supported: %d, %i, %u, %s, %%. Anything else asserts immediately,
+ * so a missing specifier is caught loudly rather than silently
+ * misformatted or (worse) misreading the va_list.
+ */
+private char[] formatMessage(const(char)* format, ref va_list args)
+{
+    Appender!(char[]) sink;
+    const(char)* f = format;
+
+    while (*f)
+    {
+	char c = *f++;
+	if (c != '%')
+	{
+	    sink.put(c);
+	    continue;
+	}
+
+	char spec = *f;
+	if (spec)
+	    f++;
+
+	switch (spec)
+	{
+	    case '%':
+		sink.put('%');
+		break;
+
+	    case 'd':
+	    case 'i':
+		sink.put(to!string(va_arg!int(args)));
+		break;
+
+	    case 'u':
+		sink.put(to!string(va_arg!uint(args)));
+		break;
+
+	    case 's':
+	    {
+		char* s = va_arg!(char*)(args);
+		while (*s)
+		    sink.put(*s++);
+		break;
+	    }
+
+	    default:
+		assert(0, "printf.d: unsupported format specifier");
+	}
+    }
+    return sink.data;
 }
 
 extern (C)
@@ -86,42 +146,7 @@ extern (C)
 int VPRINTF(immutable scope char* format, va_list args)
 {
     if (printf_logging != Plog.TOBITBUCKET)
-    {
-	char[128] buffer;
-	char* p;
-	uint psize;
-	int count;
-
-	p = buffer.ptr;
-	psize = buffer.length;
-	for (;;)
-	{
-	    version (linux)
-	    {
-		count = vsnprintf(p,psize,format,args);
-		if (count == -1)
-		    psize *= 2;
-		else if (count >= cast(int)psize)
-		    psize = count + 1;
-		else
-		    break;
-	    }
-	    else version (Windows)
-	    {
-		count = _vsnprintf(p,psize,format,args);
-		if (count != -1)
-		    break;
-		psize *= 2;
-	    }
-	    else
-	    {
-		static assert(0);	// unsupported system
-	    }
-	    p = cast(char *) alloca(psize * buffer[0].sizeof);	// buffer too small, try again with larger size
-	}
-
-	LogfileAppend(p, count);
-    }
+	LogfileAppend(formatMessage(format, args));
     return 0;
 }
 
