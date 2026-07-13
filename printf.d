@@ -22,8 +22,9 @@
  */
 
 import core.stdc.stdio;
-import core.stdc.stdlib;
 import core.stdc.stdarg : va_list, va_start, va_end;
+import core.stdc.stdlib;
+import core.stdc.string : strlen;
 import std.string;
 import std.file;
 
@@ -82,7 +83,7 @@ void LogfileAppend(char* buffer)
 extern (C)
 {
 
-int VPRINTF(char* format, va_list args)
+int VPRINTF(immutable scope char* format, va_list args)
 {
     if (printf_logging != Plog.TOBITBUCKET)
     {
@@ -91,7 +92,7 @@ int VPRINTF(char* format, va_list args)
 	uint psize;
 	int count;
 
-	p = buffer;
+	p = buffer.ptr;
 	psize = buffer.length;
 	for (;;)
 	{
@@ -124,15 +125,13 @@ int VPRINTF(char* format, va_list args)
     return 0;
 }
 
-int PRINTF(char* format, ...)
+int PRINTF(immutable scope char* format, ...)
 {
     int result = 0;
 
     if (printf_logging != Plog.TOBITBUCKET)
     {
 	va_list ap;
-	
-
 	va_start(ap, format);
 	result = VPRINTF(format,ap);
 	va_end(ap);
@@ -143,9 +142,9 @@ int PRINTF(char* format, ...)
 
 }
 
-void _printf_assert(char* file, uint line)
+void _printf_assert(immutable scope char* file, uint line)
 {
-    PRINTF("assert fail: %s(%d)\n", file, line);
+    PRINTF(("assert fail: %s(%d)\n").ptr, file, line);
     *cast(char *)0 = 0;	// seg fault to ensure it isn't overlooked
     exit(0);
 }
