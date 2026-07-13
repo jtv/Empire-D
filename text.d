@@ -149,7 +149,7 @@ struct Text
     {
         version (Posix)
 	{
-	    return textPlatformInr(this);
+	    // XXX: Port this!
 	}
 	int c;
 
@@ -210,12 +210,6 @@ struct Text
 
     void bell()
     {
-        version (Posix)
-	{
-	    textPlatformBell();
-	    return;
-	}
-	//MessageBeep(0);
 	TTout(BEL);
     }
 
@@ -329,7 +323,7 @@ struct Text
 	va_list args;
 
 	va_start(args, format);
-	count = _vsnprintf(buffer.ptr,buffer.sizeof,format,args);
+	count = vsnprintf(buffer.ptr,buffer.sizeof,format,args);
 	va_end(args);
 	smes(buffer.ptr);
     }
@@ -401,7 +395,7 @@ struct Text
 	if (watch)
 	{
 	    curs(rc);
-	    output(value);
+	    output(cast(char) (value & 0xff));
 	}
     }
 
