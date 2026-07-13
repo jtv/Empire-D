@@ -30,7 +30,7 @@ import eplayer;
 
 uint noflush = 0;			/* if non-zero then don't flush	*/
 
-Type[TYPMAX] typx =
+immutable Type[TYPMAX] typx =
 [
 	{  5, 6,'A', 0 },
 	{ 10,12,'F',20 },
@@ -45,13 +45,13 @@ Type[TYPMAX] typx =
 
 // These are fleshed out in init_var()
 //		     ,*,.,+,O,A,F,F,D,T,S,R,C,B
-int own [MAPMAX] = [0,0,0,0,1,1,1,1,1,1,1,1,1,1,	// etc.
+int[MAPMAX] own  = [0,0,0,0,1,1,1,1,1,1,1,1,1,1,	// etc.
 			    2,2,2,2,2,2,2,2,2,2];
-int typ [MAPMAX] = [J,X,J,J,X,A,F,F,D,T,S,R,C,B,	// etc.
+int[MAPMAX] typ  = [J,X,J,J,X,A,F,F,D,T,S,R,C,B,	// etc.
 			    X,A,F,F,D,T,S,R,C,B];
-int sea [MAPMAX] = [0,0,1,0,0,0,0,1,1,1,1,1,1,1,	// etc.
+int[MAPMAX] sea = [0,0,1,0,0,0,0,1,1,1,1,1,1,1,	// etc.
 			    0,0,0,1,1,1,1,1,1,1];
-int land[MAPMAX] = [0,0,0,1,0,1,1,0,0,0,0,0,0,0,	// etc.
+int[MAPMAX] land = [0,0,0,1,0,1,1,0,0,0,0,0,0,0,	// etc.
 			    0,1,1,0,0,0,0,0,0,0];
 
 /* Mask table. Index is type (A..B).	*/
@@ -145,9 +145,9 @@ void init_var()
     }
 
     memset(&savbeg, 0, &savend - &savbeg);
-    memset(city, 0, city.sizeof);
-    memset(unit, 0, unit.sizeof);
-    memset(player, 0, player.sizeof);
+    memset(city.ptr, 0, city.sizeof);
+    memset(unit.ptr, 0, unit.sizeof);
+    memset(player.ptr, 0, player.sizeof);
 
     for (i = 1; i <= PLYMAX; i++)
     {
@@ -182,16 +182,16 @@ int var_savgam(char* filename)
   if (fwrite(&savbeg, 1, n, fp) != n)
 	goto err2;
   n = CITMAX;
-  if (fwrite(city, City.sizeof, n, fp) != n)
+  if (fwrite(city.ptr, City.sizeof, n, fp) != n)
 	goto err2;
   n = UNIMAX;
-  if (fwrite(unit, Unit.sizeof, n, fp) != n)
+  if (fwrite(unit.ptr, Unit.sizeof, n, fp) != n)
 	goto err2;
   n = PLYMAX + 1;
-  if (fwrite(player, Player.sizeof, n, fp) != n)
+  if (fwrite(player.ptr, Player.sizeof, n, fp) != n)
 	goto err2;
 
-  player[0].map = .map;
+  player[0].map = .map.ptr;
   for (i = 1; i <= numply; i++)
   {
 	n = MAPSIZE;
@@ -225,16 +225,16 @@ int resgam(FILE* fp)
   if (fread(&savbeg, 1, n, fp) != n)
 	goto err2;
   n = CITMAX;
-  if (fread(city, City.sizeof, n, fp) != n)
+  if (fread(city.ptr, City.sizeof, n, fp) != n)
 	goto err2;
   n = UNIMAX;
-  if (fread(unit, Unit.sizeof, n, fp) != n)
+  if (fread(unit.ptr, Unit.sizeof, n, fp) != n)
 	goto err2;
   n = PLYMAX + 1;
-  if (fread(player, Player.sizeof, n, fp) != n)
+  if (fread(player.ptr, Player.sizeof, n, fp) != n)
 	goto err2;
 
-  player[0].map = .map;
+  player[0].map = .map.ptr;
   for (i = 1; i <= numply; i++)
   {
 	n = MAPSIZE;
