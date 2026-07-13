@@ -1092,7 +1092,7 @@ struct Player
      */
 
     void setmode(int newmod)
-    {   static char *modmsg[] =
+    {   static char *[] modmsg =
 	[	"         \1",
 	    "Move     \1",
 	    "Survey   \1",
@@ -2022,9 +2022,9 @@ struct Player
     int locs(Unit *u,loc_t toloc)
     {   int r2,flag;
 
-	static byte lp[PLYMAX][MAPMAX];	// move on land for armies
-	static byte ap[PLYMAX][MAPMAX];	// move on sea for fighters
-	static byte sp[PLYMAX][MAPMAX];	// move on sea for ships
+	static byte[MAPMAX][PLYMAX] lp;	// move on land for armies
+	static byte[MAPMAX][PLYMAX] ap;	// move on sea for fighters
+	static byte[MAPMAX][PLYMAX] sp;	// move on sea for ships
 	static int inited;
 
 	if (u.loc == toloc)		// if at destination
@@ -2727,7 +2727,7 @@ struct Player
 
     void SHIPco(Unit *u,dir_t *pr2)
     {   int msknum;
-      static int attmsk[6] =
+      static int[6] attmsk =
       [	mF|mD|mT|mS,			// D:.FDT S...
 	    0,				// T:.... ....
 	    mD|mT|mS|mR|mC|mB,		// S:..DT SRCB
@@ -2735,7 +2735,7 @@ struct Player
 	    mD|mT|mC,			// C:..DT ..C.
 	    mF|mD|mT|mS|mR|mC|mB		// B:.FDT SRCB
       ];
-      static int escmsk[6] =
+      static int[6] escmsk =
       [	mA|mR|mC|mB,			// D:A... .RCB
 	    mA|mF|mD|mS|mR|mC|mB,		// T:AFD. SRCB
 	    mA|mF,				// S:AF.. ....
@@ -2955,7 +2955,7 @@ struct Player
     int shiptr(Unit *u)
     {   uint loc,tloc,min,dt,i,j,mask;
 	Player *p = this;
-	static uint nshprf[6] =		// which rows to look at
+	static uint[6] nshprf =		// which rows to look at
 	[   mD|mT|mS,			// D: DT S...
 	    mT,				// T: .T ....
 	    mD|mT|mS,			// S: DT S...
@@ -3530,7 +3530,7 @@ struct Player
 	int i;
 	int co40;
 	char *s;
-	char buf[r.sizeof * 3 + 1];
+	char[r.sizeof * 3 + 1] buf;
 	Text *t = &display.text;
 
 	if (!watch)
@@ -3822,8 +3822,8 @@ struct Player
      */
 
     int cmdcur(loc_t *ploc,uint cmd,dir_t *pr2)
-    {   static int dirtab[] = ['D','E','W','Q','A','Z','X','C'];
-        static int dirtab2[] = [77*256,73*256,72*256,71*256,	// scan codes
+    {   static int[] dirtab = ['D','E','W','Q','A','Z','X','C'];
+        static int[] dirtab2 = [77*256,73*256,72*256,71*256,	// scan codes
 			      75*256,79*256,80*256,81*256];
       Player *p = this;
       Display *d = p.display;
