@@ -17,7 +17,7 @@ import winemp;
 import eplayer;
 import display;
 
-version (WIndows)
+version (Windows)
 {
 import twin;
 }
@@ -32,6 +32,128 @@ void invalidateSector()
 {
     InvalidateRect(global.hwnd, &global.sector, false);
 }
+
+/*************************************
+ * Invalidate display of loc on the screen, so
+ * it will get updated.
+ */
+
+void invalidateLoc(loc_t loc)
+{
+    RECT rect;
+    int r, c;
+    int dx;
+    int dy;
+    DWORD mode;
+
+//PRINTF("invalidateLoc(loc = %d)\n", loc);
+    assert(loc < MAPSIZE);
+
+    r = ROW(loc) - ROW(global.ulcorner);
+    c = COL(loc) - COL(global.ulcorner);
+    dx = cast(int)(10 * global.scalex);
+    dy = cast(int)(10 * global.scaley);
+
+    rect.left = c * dx - global.offsetx;
+    rect.top = 40 + r * dy - global.offsety;
+    rect.right = rect.left + dx;
+    rect.bottom = rect.top + dy;
+
+    InvalidateRect(global.hwnd, &rect, false);
+}
+
+
+/******************************
+ * Various sounds.
+ */
+void sound_gun()
+{
+    play_sample("gun_1.wav", true);
+}
+
+void sound_bang()
+{
+    play_sample("explosi1.wav", true);
+    play_sample("bubbles.wav", true);
+}
+
+void sound_error()
+{
+    play_sample("error.wav", true);
+}
+
+void sound_splash()
+{
+    play_sample("splash.wav", true);
+}
+
+void sound_aground()
+{
+    play_sample("bubbles.wav", true);
+}
+
+void sound_subjugate()
+{
+    play_sample("machine1.wav", true);
+}
+
+void sound_crushed()
+{
+    play_sample("gun_3.wav", true);
+}
+
+void sound_flyby()
+{
+    play_sample("flyby.wav", null, true);
+}
+
+void sound_fcrash()
+{
+    play_sample("explode.wav", null, true);
+}
+
+void sound_fuel()
+{
+    play_sample("fuel.wav", null, true);
+}
+
+void sound_taps()
+{
+    play_sample("taps.wav", null, true);
+}
+
+void sound_ackack()
+{
+    play_sample("ackack1.wav", null, true);
+}
+
+
+/*********************************************
+ * Start/Stop blast graphic.
+ */
+
+void ShowBlast(int state, loc_t loc)
+{
+    version (Windows)
+    {
+        RECT blastbox;
+        int x, y;
+
+        x = LocToX(loc);
+        y = LocToY(loc);
+        blastbox.bottom = y + 5;
+        blastbox.top = blastbox.bottom - 20;
+        blastbox.left = x - 10;
+        blastbox.right = x + 10;
+        InvalidateRect(global.hwnd, &blastbox, false);
+        global.blastState = state;
+        global.blastx = blastbox.left;
+        global.blasty = blastbox.top;
+        if (state)
+	    UpdateWindow(global.hwnd);
+        }
+}
+
 
 /********************************************************/
 
@@ -1154,101 +1276,33 @@ extern (C) void win_flush()
 }
 
 /******************************
+ * Play a sound.
+ *
+ * If sync is true, play it just once.  If false, loop forever.
+ */
+void play_sample(const(char) *path, bool sync)
+{
+    version (Windows)
+    {
+	UpdateWindow(global.hwnd);
+	if (global.speaker)
+	{
+	    int repetition = (sync ? SND_SYNC : (SND_ASYNC | SND_NOSTOP));
+	    PlaySoundA(path, null, SND_FILENAME, repetition);
+	}
+    }
+}
+
+
+/******************************
  * Click the speaker.
  */
 
 extern (C) void sound_click()
 {
-    UpdateWindow(global.hwnd);
-    if (global.speaker)
-	PlaySoundA("click.wav", null, SND_ASYNC | SND_FILENAME | SND_NOSTOP);
+    play_sample("click.wav", false);
 }
 
-void sound_gun()
-{
-    UpdateWindow(global.hwnd);
-    if (global.speaker)
-	PlaySoundA("gun_1.wav", null, SND_SYNC | SND_FILENAME);
-}
-
-void sound_bang()
-{
-    UpdateWindow(global.hwnd);
-    if (global.speaker)
-    {	PlaySoundA("explosi1.wav", null, SND_SYNC | SND_FILENAME);
-	PlaySoundA("bubbles.wav", null, SND_SYNC | SND_FILENAME);
-    }
-}
-
-void sound_error()
-{
-    UpdateWindow(global.hwnd);
-    if (global.speaker)
-	PlaySoundA("error.wav", null, SND_SYNC | SND_FILENAME);
-}
-
-void sound_splash()
-{
-    UpdateWindow(global.hwnd);
-    if (global.speaker)
-	PlaySoundA("splash.wav", null, SND_SYNC | SND_FILENAME);
-}
-
-void sound_aground()
-{
-    UpdateWindow(global.hwnd);
-    if (global.speaker)
-	PlaySoundA("bubbles.wav", null, SND_SYNC | SND_FILENAME);
-}
-
-void sound_subjugate()
-{
-    UpdateWindow(global.hwnd);
-    if (global.speaker)
-	PlaySoundA("machine1.wav", null, SND_SYNC | SND_FILENAME);
-}
-
-void sound_crushed()
-{
-    UpdateWindow(global.hwnd);
-    if (global.speaker)
-	PlaySoundA("gun_3.wav", null, SND_SYNC | SND_FILENAME);
-}
-
-void sound_flyby()
-{
-    UpdateWindow(global.hwnd);
-    if (global.speaker)
-	PlaySoundA("flyby.wav", null, SND_SYNC | SND_FILENAME);
-}
-
-void sound_fcrash()
-{
-    UpdateWindow(global.hwnd);
-    if (global.speaker)
-	PlaySoundA("explode.wav", null, SND_SYNC | SND_FILENAME);
-}
-
-void sound_fuel()
-{
-    UpdateWindow(global.hwnd);
-    if (global.speaker)
-	PlaySoundA("fuel.wav", null, SND_SYNC | SND_FILENAME);
-}
-
-void sound_taps()
-{
-    UpdateWindow(global.hwnd);
-    if (global.speaker)
-	PlaySoundA("taps.wav", null, SND_SYNC | SND_FILENAME);
-}
-
-void sound_ackack()
-{
-    UpdateWindow(global.hwnd);
-    if (global.speaker)
-	PlaySoundA("ackack1.wav", null, SND_SYNC | SND_FILENAME);
-}
 
 /***********************************
  * Setup for Windows.
@@ -1502,35 +1556,6 @@ int adjSector(double newscalex, double newscaley)
 }
 
 /*************************************
- * Invalidate display of loc on the screen, so
- * it will get updated.
- */
-
-void invalidateLoc(loc_t loc)
-{
-    RECT rect;
-    int r, c;
-    int dx;
-    int dy;
-    DWORD mode;
-
-//PRINTF("invalidateLoc(loc = %d)\n", loc);
-    assert(loc < MAPSIZE);
-
-    r = ROW(loc) - ROW(global.ulcorner);
-    c = COL(loc) - COL(global.ulcorner);
-    dx = cast(int)(10 * global.scalex);
-    dy = cast(int)(10 * global.scaley);
-
-    rect.left = c * dx - global.offsetx;
-    rect.top = 40 + r * dy - global.offsety;
-    rect.right = rect.left + dx;
-    rect.bottom = rect.top + dy;
-
-    InvalidateRect(global.hwnd, &rect, false);
-}
-
-/*************************************
  * Invalidate display of rectangle formed by corners loc1, loc2
  * on the screen, so
  * it will get updated.
@@ -1605,27 +1630,3 @@ int LocToY(loc_t loc)
     y = 40 + row * dy + dy / 2 - global.offsety;
     return y;
 }
-
-/*********************************************
- * Start/Stop blast graphic.
- */
-
-void ShowBlast(int state, loc_t loc)
-{
-    RECT blastbox;
-    int x, y;
-
-    x = LocToX(loc);
-    y = LocToY(loc);
-    blastbox.bottom = y + 5;
-    blastbox.top = blastbox.bottom - 20;
-    blastbox.left = x - 10;
-    blastbox.right = x + 10;
-    InvalidateRect(global.hwnd, &blastbox, false);
-    global.blastState = state;
-    global.blastx = blastbox.left;
-    global.blasty = blastbox.top;
-    if (state)
-	UpdateWindow(global.hwnd);
-}
-

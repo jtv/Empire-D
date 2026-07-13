@@ -169,7 +169,7 @@ void init_var()
  *	!=0	error
  */
 
-int var_savgam(char* filename)
+int var_savgam(const(char)* filename)
 {
   FILE *fp;
   char r;
