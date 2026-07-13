@@ -132,7 +132,7 @@ do
   int trymov;			/* trial move direction		*/
   int begdir;			/* dir that we started out with	*/
 
-  const int TRACKMAX = 100;
+  enum int TRACKMAX = 100;
   int[TRACKMAX] track;		/* list of locs where we stopped */
 				/* following the shore and went	*/
 				/* straight. This is necessary	*/

@@ -19,7 +19,7 @@ module text;
 
 import core.stdc.stdarg;
 import core.stdc.stdio;
-import std.ascii;
+import std.ascii : toUpper;
 
 import empire;
 import printf;
@@ -27,8 +27,8 @@ import printf;
 extern (C) void win_flush();
 extern (C) void sound_click();
 
-const int VBUFROWS	= 5;
-const int VBUFCOLS	= 80;
+enum int VBUFROWS	= 5;
+enum int VBUFCOLS	= 80;
 
 char[80 + 1][5] vbuffer;
 
@@ -159,7 +159,7 @@ struct Text
 	c = inbuf;
 	inbuf = -1;
 
-	return std.ascii.toUpper(cast(char)c);
+	return toUpper(cast(char)c);
     }
 
     void TTunget(int c)		// put character c in input

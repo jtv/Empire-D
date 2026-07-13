@@ -27,7 +27,7 @@ void setran() { rng.seed(37); }           // or combine two seeds with some expr
 uint random(uint p) { return uniform(0, p, rng); }
 uint ranq() { return uniform!uint(rng); }
 
-const int ERRTERM	= 1;
+enum int ERRTERM	= 1;
 
 /* Definitions for typ[MAPMAX] array (X=city, J=not unit or city)
  */
@@ -57,23 +57,23 @@ enum
     mB = 0x01,
 }
 
-const int TYPMAX	= 8;	// number of types
-const int UNIMAX	= 500;	// max number of units
-//const int UNIMAX	= 8;
-const int CITMAX	= 70;	// max number of cities
-const int MAPMAX	= (4 + PLYMAX * 10);	// number of map elements
-const int LOCMAX	= 10;	// size of loci array
-const int PLYMAX	= 6;	// number of players
-const int VERSION	= 1;	// version number
-const int NEW		= 1;	// new computer strategy
+enum int TYPMAX	= 8;	// number of types
+enum int UNIMAX	= 500;	// max number of units
+//enum int UNIMAX	= 8;
+enum int CITMAX	= 70;	// max number of cities
+enum int MAPMAX	= (4 + PLYMAX * 10);	// number of map elements
+enum int LOCMAX	= 10;	// size of loci array
+enum int PLYMAX	= 6;	// number of players
+enum int VERSION	= 1;	// version number
+enum int NEW		= 1;	// new computer strategy
 
 debug
 {
-    const int	PLYMIN	= 1;	// minimum number of players
+    enum int	PLYMIN	= 1;	// minimum number of players
 }
 else
 {
-    const int	PLYMIN	= 2;	// minimum number of players
+    enum int	PLYMIN	= 2;	// minimum number of players
 }
 
 
@@ -92,9 +92,9 @@ enum
 }
 
 /* map row and column limits (0..Mrowmx,0..Mcolmx)			*/
-const uint Mrowmx	= 59;
-const int Mcolmx	= 99;
-const int MAPSIZE	= ((Mrowmx + 1) * (Mcolmx + 1));
+enum uint Mrowmx	= 59;
+enum int Mcolmx	= 99;
+enum int MAPSIZE	= ((Mrowmx + 1) * (Mcolmx + 1));
 
 int ROW(loc_t loc) { return loc / (Mcolmx + 1); }
 int COL(loc_t loc) { return loc % (Mcolmx + 1); }
@@ -144,7 +144,7 @@ struct City
 
     // Computer strategy
     uint round;		// turn it was captured
-};
+}
 
 /* Ifo functions (same as in hmove.c):
  */
@@ -200,7 +200,7 @@ struct Unit
     uint abd;		// T,C: number of As (Fs) aboard (0 if not T (C))
     int dir;		// direction (1 or -1)
     int fuel;		// F:range used for strategy selection
-};
+}
 
 // Describes unit type
 struct Type
@@ -210,7 +210,7 @@ struct Type
     char unichr;	// character representation for city phase purposes
     ubyte hittab;	// hits left (value for F is fuel, for A is 0
 			// for computer strategy)
-};
+}
 
 enum
 {
@@ -222,7 +222,4 @@ enum
     mdPHAS	= 5,
 }
 
-
-
-/* #define DS(x)	((x)*256+18) */
 

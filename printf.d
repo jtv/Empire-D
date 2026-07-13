@@ -25,12 +25,11 @@ import core.stdc.stdio;
 import core.stdc.stdarg : va_list, va_start, va_end;
 import core.stdc.stdlib;
 import core.stdc.string : strlen;
-import std.string;
-import std.file;
+import std.file : append;
 
 
 
-const int LOG = 1;		// disable logging by setting this to 0
+enum int LOG = 1;		// disable logging by setting this to 0
 
 version (Windows)
 {
@@ -50,7 +49,7 @@ enum Plog
 	TOBITBUCKET,
 	TOLOGFILE,
 	TOSTDOUT,
-};
+}
 
 Plog printf_logging = Plog.TOLOGFILE;
 
@@ -72,7 +71,7 @@ void printf_tobitbucket()
 void LogfileAppend(char* buffer)
 {
     if (printf_logging == Plog.TOLOGFILE)
-	std.file.append(logfile, buffer[0 .. strlen(buffer)]);
+	append(logfile, buffer[0 .. strlen(buffer)]);
     else
     {
 	fputs(buffer, stdout);

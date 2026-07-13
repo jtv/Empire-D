@@ -26,7 +26,7 @@ import core.sys.windows.windows;
 import core.stdc.stdio;
 import core.stdc.stdlib;
 import std.algorithm.comparison : max, min;
-import std.file;
+import std.file : read;
 
 int inhelp;
 immutable string szAppName = "TextWin";
@@ -89,7 +89,7 @@ extern(Windows) LRESULT TextWndProc (HWND hwnd, UINT message, WPARAM wParam,
     {
           case WM_CREATE:
 
-		buffer = cast(char[])std.file.read("help.txt");
+		buffer = cast(char[])read("help.txt");
 		numlines = 0;
 		nMaxWidth = 0;
 		p = buffer;

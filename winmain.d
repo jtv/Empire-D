@@ -307,7 +307,7 @@ struct Global
     int blastState;	// !=0 means draw blast
     int blastx;
     int blasty;		// location of blast
-};
+}
 
 Global global;
 

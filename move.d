@@ -28,7 +28,7 @@ import core.stdc.stdio : printf;
 import core.stdc.stdlib : exit;
 import core.stdc.string : memset;
 
-const int HYSTERESIS = 10;
+enum int HYSTERESIS = 10;
 
 /***********************************
  * Do a time slice.
