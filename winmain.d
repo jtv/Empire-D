@@ -4,19 +4,38 @@
 // Compile with Digital Mars compiler www.digitalmars.com
 // www.classicempire.com
 
-version (Windows):
 import core.stdc.stdlib;
-import core.sys.windows.windows;
 import core.runtime : Runtime;
+
+version (Windows)
+{
+import core.sys.windows.windows;
+}
 
 import empire;
 import winemp;
 import eplayer;
 import display;
+
+version (WIndows)
+{
 import twin;
+}
+
 import init;
 
+/******************************************
+ * Invalidate entire sector.
+ */
+
+void invalidateSector()
+{
+    InvalidateRect(global.hwnd, &global.sector, false);
+}
+
 /********************************************************/
+
+version (Windows):
 
 extern (Windows)
 int WinMain(HINSTANCE hInstance,
@@ -1557,15 +1576,6 @@ void invalidateLocRect(loc_t loc1, loc_t loc2)
     rect.bottom = rect.top + dy * (r2 - r1 + 1);
 
     InvalidateRect(global.hwnd, &rect, false);
-}
-
-/******************************************
- * Invalidate entire sector.
- */
-
-void invalidateSector()
-{
-    InvalidateRect(global.hwnd, &global.sector, false);
 }
 
 /******************************************

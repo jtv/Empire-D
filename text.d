@@ -332,7 +332,7 @@ struct Text
      * Position cursor and type message.
      */
 
-    void cmes(int rc,char *p)
+    void cmes(int rc,const(char *)p)
     {
       if (!watch) return;
       TTcurs(rc);
