@@ -21,11 +21,12 @@
  * if the program subsequently crashes.
  */
 
-import core.stdc.stdio;
+import core.stdc.stdio : vsnprintf;
+version (Windows) import core.stdc.stdio : _vsnprintf;
 import core.stdc.stdarg : va_list, va_start, va_end;
 import core.stdc.stdlib;
-import core.stdc.string : strlen;
 import std.file : append;
+import std.stdio : stdout;
 
 
 
@@ -74,8 +75,8 @@ void LogfileAppend(char* buffer, size_t len)
 	append(logfile, buffer[0 .. len]);
     else
     {
-	fputs(buffer, stdout);
-	fflush(stdout);
+	stdout.rawWrite(buffer[0 .. len]);
+	stdout.flush();
     }
 }
 
