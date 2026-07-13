@@ -38,7 +38,7 @@ version (Windows)
 }
 version (linux)
 {
-    immutable string logfile = "/var/log/empire.log";
+    immutable string logfile = ".empire.log";
 }
 
 /*********************************************
