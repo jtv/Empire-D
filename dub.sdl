@@ -1,0 +1,49 @@
+name "empire"
+description "Empire, the Wargame of the Century -- classic D port"
+authors "Walter Bright"
+copyright "Copyright (c) 1978-2004 by Walter Bright"
+// Note: the original source headers state personal-use-only terms, not an
+// open-source license -- deliberately not setting an SPDX "license" field
+// here rather than mischaracterize that. Worth a real decision separately.
+
+targetType "executable"
+targetName "empire"
+
+// Files shared by every frontend: the platform-neutral game engine.
+// text.d and printf.d already gate their few Windows-specific bits behind
+// version(Windows) internally, so they're safe to compile everywhere.
+sourceFiles "empire.d" "display.d" "eplayer.d" "init.d" "maps.d" \
+            "mapdata.d" "move.d" "path.d" "printf.d" "sub2.d" \
+            "text.d" "var.d"
+
+buildRequirements "silenceWarnings"
+
+// --- Windows GUI build (the only target the old makefile produced) ---
+configuration "gui-windows" {
+    platforms "windows"
+
+    sourceFiles "winmain.d" "twin.d" "winemp.d"
+
+    // Compile the Win32 resources (icon, bitmaps, dialogs, menus) and
+    // link the result straight in -- this step never runs on other
+    // platforms, since this whole configuration is windows-only.
+    preBuildCommands "cd /d $PACKAGE_DIR && rc /r empire.rc" platform="windows"
+    sourceFiles "empire.res" platform="windows"
+
+    libs "winmm" "comdlg32" "gdi32" "kernel32" "user32" platform="windows"
+    lflags "/subsystem:windows" platform="windows"
+
+    // Assets winmain.d/twin.d load from disk at runtime (not embedded
+    // resources): sounds and the help text.
+    copyFiles "*.wav" "help.txt"
+}
+
+// --- Cross-platform text build ---
+// No frontend exists yet -- textmain.d below is a placeholder just to
+// prove the engine itself compiles and links outside Windows. The real
+// text UI (input handling, board rendering, a game loop) is still to
+// be written; this is meant as its starting point, not a finished thing.
+configuration "text" {
+    sourceFiles "textmain.d"
+    copyFiles "help.txt"
+}

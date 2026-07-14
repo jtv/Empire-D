@@ -3404,7 +3404,7 @@ struct Player
 	    city[i].fnd >= p.round + typx[city[i].phs].prodtime - 5 &&
 	    p.patlnd(city[i].loc,loc))	// route to enemy army
 	    {
-		debug cmes(0x400,"THREAT");
+		debug display.text.cmes(0x400,"THREAT");
 		city[i].phs = -1;		// select new phase
 	    }
 	}

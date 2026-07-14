@@ -155,7 +155,7 @@ int chkloc(loc_t loc)
     return loc < MAPSIZE && !border(loc);
 }
 
-void chkmov(dir_t r2,int errnum)
+void chkmov(dir_t r2)
 {
   assert(r2 >= -1 && r2 <= 7);
 }
