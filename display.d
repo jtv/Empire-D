@@ -25,10 +25,14 @@ import core.time : dur;
 import empire;
 import eplayer;
 import text;
-import winmain;
 import maps;
 import var;
-import winmain: invalidateLoc;
+import feedback : invalidateLoc, ShowBlast, sound_gun, sound_bang,
+    sound_error, sound_splash, sound_aground, sound_subjugate,
+    sound_crushed, sound_flyby, sound_fcrash, sound_fuel, sound_taps,
+    sound_ackack;
+
+version (Windows) import winmain : global, invalidateLocRect;
 
 // For each display
 

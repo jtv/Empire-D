@@ -4,10 +4,10 @@
  * Placeholder entry point for the text frontend.
  *
  * Its only job right now is to prove that the platform-neutral game
- * engine -- empire.d, display.d, eplayer.d, init.d, maps.d, mapdata.d,
- * move.d, path.d, printf.d, sub2.d, text.d, var.d -- compiles and links
- * cleanly on a non-Windows platform, with no Win32 dependency anywhere
- * in the chain.
+ * engine -- empire.d, display.d, eplayer.d, feedback.d, init.d, maps.d,
+ * mapdata.d, move.d, path.d, printf.d, sub2.d, text.d, var.d -- compiles
+ * and links cleanly on a non-Windows platform, with no Win32 dependency
+ * anywhere in the chain.
  *
  * This is NOT a playable game yet: there is no board setup, no input
  * handling, no game loop. That's the real text-frontend work still to

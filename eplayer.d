@@ -30,7 +30,7 @@ version (Windows)
 import winmain : global;
 }
 
-import winmain : invalidateSector;
+import feedback : invalidateSector;
 
 import core.stdc.stdio : sprintf;
 import std.uni : toUpper;
