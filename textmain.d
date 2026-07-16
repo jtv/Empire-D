@@ -44,6 +44,9 @@ int main()
     writeln("Empire (text frontend placeholder) -- engine build OK, VERSION=", VERSION);
 
     writeln("Press any key (a real blocking read -- no polling)...");
+    stdout.flush();	// make sure the above is actually on screen before
+			// termInit() reconfigures (or, for ncurses, takes
+			// over) the terminal
     termInit();
     int c = termGetKey();
     termDone();
