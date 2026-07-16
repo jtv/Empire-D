@@ -143,14 +143,19 @@ struct Text
      * Get char from device and return it. Return -1
      * if no char is available. Convert all chars to uc.
      * Do not echo character.
+     *
+     * This is deliberately OS-agnostic: it only ever reads inbuf,
+     * never the keyboard directly. The actual blocking read lives
+     * in the frontend's own game loop (see termio.d for the text
+     * frontend's blocking key read, and TTunget() below) -- by the
+     * time TTinr() is called, whoever needed a keystroke has
+     * already obtained one and fed it in via TTunget(). Mirrors how
+     * the GUI build already works: winmain.d's WM_CHAR handler
+     * calls TTunget(), it doesn't happen here either.
      */
 
     int TTinr()
     {
-        version (Posix)
-	{
-	    // XXX: Port this!
-	}
 	int c;
 
 	if (watch == DAnone)
