@@ -19,9 +19,10 @@
 
 module textmain;
 
+import std.conv : to;
 import std.stdio : writeln, stdout, write;
 import empire : VERSION;
-import termio : termInit, termDone, termGetKey;
+import termio : termInit, termDone, termGetKey, termMessage;
 
 /*
  * text.d calls these two hooks (originally implemented only in
@@ -41,15 +42,16 @@ extern (C) void sound_click()
 
 int main()
 {
-    writeln("Empire (text frontend placeholder) -- engine build OK, VERSION=", VERSION);
-
-    writeln("Press any key (a real blocking read -- no polling)...");
-    stdout.flush();	// make sure the above is actually on screen before
-			// termInit() reconfigures (or, for ncurses, takes
-			// over) the terminal
     termInit();
+    termMessage("Empire (text frontend placeholder) -- engine build OK, VERSION="
+	~ to!string(VERSION));
+    termMessage("Press any key (a real blocking read -- no polling)...");
+
     int c = termGetKey();
     termDone();
+
+    // Terminal is back to normal after termDone() for both backends,
+    // so plain stdio is fine here.
     writeln("Got key: ", c);
 
     return 0;

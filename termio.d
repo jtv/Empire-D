@@ -27,6 +27,7 @@ module termio;
 version (UseNcurses)
 {
     import deimos.ncurses;
+    import std.string : toStringz;
 
     void termInit()
     {
@@ -43,6 +44,18 @@ version (UseNcurses)
     int termGetKey()
     {
 	return getch();	// blocks until a key is available
+    }
+
+    /*
+     * Print a message so it's actually visible. initscr() switches
+     * the terminal to curses' own screen buffer and clears it, so
+     * plain stdout writes made after termInit() are invisible --
+     * everything has to go through curses' own output calls instead.
+     */
+    void termMessage(string s)
+    {
+	printw("%s\n", toStringz(s));
+	refresh();
     }
 }
 else version (Posix)
@@ -76,6 +89,19 @@ else version (Posix)
 	ubyte c;
 	auto n = read(STDIN_FILENO, &c, 1);	// blocks for one byte
 	return (n == 1) ? cast(int) c : -1;
+    }
+
+    /*
+     * termInit() only reconfigures input handling here (no line
+     * buffering, no echo) -- it doesn't touch the screen the way
+     * initscr() does, so plain stdout output works fine.
+     */
+    void termMessage(string s)
+    {
+	import std.stdio : writeln, stdout;
+
+	writeln(s);
+	stdout.flush();
     }
 }
 else
