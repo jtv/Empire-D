@@ -10,10 +10,10 @@ targetType "executable"
 targetName "empire"
 
 // Files shared by every frontend: the platform-neutral game engine.
-// text.d and printf.d already gate their few Windows-specific bits behind
-// version(Windows) internally, so they're safe to compile everywhere.
-sourceFiles "empire.d" "display.d" "eplayer.d" "init.d" "maps.d" \
-            "mapdata.d" "move.d" "path.d" "printf.d" "sub2.d" \
+// text.d, printf.d, and feedback.d already gate their Windows-specific
+// bits behind version(Windows) internally, so they're safe everywhere.
+sourceFiles "empire.d" "display.d" "eplayer.d" "feedback.d" "init.d" \
+            "maps.d" "mapdata.d" "move.d" "path.d" "printf.d" "sub2.d" \
             "text.d" "var.d"
 
 buildRequirements "silenceWarnings"
@@ -38,12 +38,27 @@ configuration "gui-windows" {
     copyFiles "*.wav" "help.txt"
 }
 
-// --- Cross-platform text build ---
-// No frontend exists yet -- textmain.d below is a placeholder just to
-// prove the engine itself compiles and links outside Windows. The real
-// text UI (input handling, board rendering, a game loop) is still to
-// be written; this is meant as its starting point, not a finished thing.
-configuration "text" {
-    sourceFiles "textmain.d"
+// --- Text builds (POSIX only for now: both backends below need it) ---
+// No frontend exists yet -- textmain.d is a placeholder just to prove
+// the engine itself compiles and links outside Windows. The real text
+// UI (input handling, board rendering, a game loop) is still to be
+// written; this is meant as its starting point, not a finished thing.
+//
+// Both configurations share termio.d for the actual blocking key read
+// (see that file) -- the backend is chosen at compile time via the
+// UseNcurses version flag, so there's no separate code path to
+// maintain per backend beyond that one file.
+
+configuration "text-ncurses" {
+    platforms "posix"
+    versions "UseNcurses"
+    dependency "ncurses" version="~>1.0.0"
+    sourceFiles "textmain.d" "termio.d"
+    copyFiles "help.txt"
+}
+
+configuration "text-termios" {
+    platforms "posix"
+    sourceFiles "textmain.d" "termio.d"
     copyFiles "help.txt"
 }

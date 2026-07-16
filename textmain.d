@@ -3,21 +3,25 @@
  *
  * Placeholder entry point for the text frontend.
  *
- * Its only job right now is to prove that the platform-neutral game
- * engine -- empire.d, display.d, eplayer.d, feedback.d, init.d, maps.d,
- * mapdata.d, move.d, path.d, printf.d, sub2.d, text.d, var.d -- compiles
- * and links cleanly on a non-Windows platform, with no Win32 dependency
- * anywhere in the chain.
+ * Its job right now is to prove two things: that the platform-neutral
+ * game engine -- empire.d, display.d, eplayer.d, feedback.d, init.d,
+ * maps.d, mapdata.d, move.d, path.d, printf.d, sub2.d, text.d, var.d --
+ * compiles and links cleanly on a non-Windows platform with no Win32
+ * dependency anywhere in the chain, and that termio.d's blocking key
+ * read actually works end to end for whichever backend was selected
+ * (see dub.sdl's text-ncurses / text-termios configurations).
  *
- * This is NOT a playable game yet: there is no board setup, no input
- * handling, no game loop. That's the real text-frontend work still to
- * be done, and this file is meant as its starting point.
+ * This is NOT a playable game yet: there is no board setup, no real
+ * input handling loop, no game loop tying input to slice()/tslice().
+ * That's the real text-frontend work still to be done, and this file
+ * is meant as its starting point.
  */
 
 module textmain;
 
 import std.stdio : writeln, stdout, write;
 import empire : VERSION;
+import termio : termInit, termDone, termGetKey;
 
 /*
  * text.d calls these two hooks (originally implemented only in
@@ -38,5 +42,12 @@ extern (C) void sound_click()
 int main()
 {
     writeln("Empire (text frontend placeholder) -- engine build OK, VERSION=", VERSION);
+
+    writeln("Press any key (a real blocking read -- no polling)...");
+    termInit();
+    int c = termGetKey();
+    termDone();
+    writeln("Got key: ", c);
+
     return 0;
 }
