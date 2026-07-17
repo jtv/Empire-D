@@ -43,6 +43,22 @@ immutable Type[TYPMAX] typx =
 ];
 
 
+/**************************************
+ * Look up a Type in typx by character.
+ *
+ * Returns index in typx if found, or -1 if not.
+ */
+
+int findTypeByChar(int ab)
+{
+    int i;
+    for (i = TYPMAX - 1; i >= 0; i--)
+        if (typx[i].unichr == ab)
+	    break;
+    return i;
+}
+
+
 // These are fleshed out in init_var()
 //		     ,*,.,+,O,A,F,F,D,T,S,R,C,B
 int[MAPMAX] own  = [0,0,0,0,1,1,1,1,1,1,1,1,1,1,	// etc.

@@ -1425,15 +1425,13 @@ struct Player
 	{
 	    d.cityProdDemands();
 	    d.pcur(loc);				// position cursor
-	    while (true)
+// XXX: This loops forever.  We never get any character from TTin() yet, do we?
+            i = -1;
+	    while (i < 0)
 	    {   int ch = t.TTin();
-		ab = toUpper(ch);		// get char from tty
-		for (i = 7; i >= 0; i--)
-		    if (ab == typx[i].unichr)
-			break;
-		if (i >= 0)
-		    break;			// got a good one
-		t.bell();
+		ab = toUpper(t.TTin());		// get char from tty
+		i = findTypeByChar(ab);
+		if (i < 0) t.bell();
 	    }
 	    t.curs(t.DS(0) + 25);		// where we want the prod to beg
 	    t.output(cast(char)(ab & 0xff));			// echo
