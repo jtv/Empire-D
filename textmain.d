@@ -92,12 +92,12 @@ int main()
     termInit();
     termMessage("Empire (text frontend) -- VERSION=" ~ to!string(VERSION));
 
-    // Hard-wired for now: 1 human player + 1 computer player.
-    gameSetup(2, false, DAtty, MTterm, DEFAULT_ROWS, DEFAULT_COLS);
-
     // Start the input thread
     auto inputThread = new Thread(&inputThreadFunc);
     inputThread.start();
+
+    // Hard-wired for now: 1 human player + 1 computer player.
+    gameSetup(2, false, DAtty, MTterm, DEFAULT_ROWS, DEFAULT_COLS);
 
     // Main game loop: just call slice() repeatedly
     while (slice() == 0)

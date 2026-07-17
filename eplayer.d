@@ -33,6 +33,8 @@ import winmain : global;
 import feedback : invalidateSector;
 
 import core.stdc.stdio : sprintf;
+import core.thread : Thread;
+import core.time : dur;
 import std.uni : toUpper;
 
 // For each player
@@ -1431,9 +1433,19 @@ struct Player
             i = -1;
 	    while (i < 0)
 	    {   int ch = t.TTin();
-		ab = toUpper(t.TTin());		// get char from tty
-		i = findTypeByChar(ab);
-		if (i < 0) t.bell();
+	        if (ch < 0)
+		{
+		    // No keypress.  Don't poll full-time; sleep just a little
+		    // bit to reduce CPU load.
+		    // XXX: Can we make this properly event-driven?
+		    Thread.sleep(dur!"msecs"(50));
+		}
+		else
+		{
+		    ab = toUpper(t.TTin());		// get char from tty
+		    i = findTypeByChar(ab);
+		    if (i < 0) t.bell();
+		}
 	    }
 	    t.curs(t.DS(0) + 25);		// where we want the prod to beg
 	    t.output(cast(char)(ab & 0xff));			// echo
