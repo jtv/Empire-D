@@ -19,6 +19,7 @@ module text;
 
 import core.stdc.stdarg;
 import core.stdc.stdio;
+import core.sync.mutex : Mutex;
 import std.ascii : toUpper;
 
 import empire;
@@ -47,6 +48,7 @@ struct Text
     int ncols;			// total number of columns in display
     int inbuf;			// -1 if empty, otherwise next character to be read
     int anychanges;		// !=0 if any changes since last flush()
+    Mutex inbufMutex;		// protects inbuf for thread-safe access
 
     void deleol()		// erase to end of line
     {
@@ -152,6 +154,9 @@ struct Text
      * already obtained one and fed it in via TTunget(). Mirrors how
      * the GUI build already works: winmain.d's WM_CHAR handler
      * calls TTunget(), it doesn't happen here either.
+     *
+     * Thread-safe: uses inbufMutex to synchronize access with the
+     * input thread (text frontend) or message handler (GUI frontend).
      */
 
     int TTinr()
@@ -161,15 +166,23 @@ struct Text
 	if (watch == DAnone)
 	    return -1;
 
-	c = inbuf;
-	inbuf = -1;
+	synchronized (inbufMutex)
+	{
+	    c = inbuf;
+	    inbuf = -1;
+	}
 
+	if (c == -1)
+	    return -1;
 	return toUpper(cast(char)c);
     }
 
     void TTunget(int c)		// put character c in input
     {
-	inbuf = c;
+	synchronized (inbufMutex)
+	{
+	    inbuf = c;
+	}
     }
 
     /**************************************
@@ -355,6 +368,7 @@ struct Text
     void TTinit()
     {
 	inbuf = -1;		// no character in input
+	inbufMutex = new Mutex();	// initialize mutex for thread-safe access
 	//nrows = 160 / 10;
 	//ncols = 120 / 10;
 	nrows = VBUFROWS;

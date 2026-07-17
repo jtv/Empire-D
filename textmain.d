@@ -17,19 +17,25 @@
  * (ioctl TIOCGWINSZ, or ncurses' LINES/COLS) instead of a fixed
  * default.
  *
- * The main loop mirrors winmain.d's idle-processing loop (PeekMessage
- * + slice()), but without the busy-wait: since there's no message
- * pump to service here, we can just check whether the player whose
- * turn it logically is happens to be human and waiting on a key
- * (Text.inbuf == -1), and only then do a real *blocking* read via
- * termio.d -- fed in via TTunget() exactly the way winmain.d's
- * WM_CHAR handler already does for the GUI build. Computer players'
- * turns just run slice() at full speed, since there's nothing else
- * that needs the CPU meanwhile.
+ * Input Architecture:
+ * -------------------
+ * The text frontend uses a dedicated input thread that continuously
+ * blocks on termGetKey() and feeds characters into the game engine via
+ * TTunget(). This mirrors the Windows frontend's event-driven model
+ * (where WM_CHAR messages call TTunget()) and provides a clean
+ * separation between input handling and game logic.
+ *
+ * The main loop simply calls slice() repeatedly -- input arrives
+ * asynchronously via the input thread, so there's no need to check
+ * for pending input in the main loop. This architecture also makes it
+ * straightforward to add future frontends (e.g., SDL2) that have their
+ * own event models.
  */
 
 module textmain;
 
+import core.atomic : atomicLoad, atomicStore;
+import core.thread : Thread;
 import std.conv : to;
 import std.stdio : writeln, stdout, write;
 import empire : VERSION, DAtty, MTterm;
@@ -41,6 +47,9 @@ import termio : termInit, termDone, termGetKey, termMessage;
 
 enum int DEFAULT_ROWS = 24;
 enum int DEFAULT_COLS = 80;
+
+// Shared flag to signal the input thread to shut down
+shared bool inputThreadShutdown = false;
 
 /*
  * text.d calls these two hooks (originally implemented only in
@@ -58,28 +67,47 @@ extern (C) void sound_click()
     write('\a');	// ASCII bell
 }
 
+/*
+ * Input thread function: continuously blocks on termGetKey() and feeds
+ * characters to the human player's input buffer via TTunget(). Runs
+ * until inputThreadShutdown is set.
+ */
+void inputThreadFunc()
+{
+    while (!atomicLoad(inputThreadShutdown))
+    {
+	int c = termGetKey();		// blocking read
+	if (c != -1)
+	{
+	    // Feed character to the human player's input buffer
+	    Player *p = Player.get(plynum);
+	    if (p && p.human)
+		p.display.text.TTunget(c);
+	}
+    }
+}
+
 int main()
 {
     termInit();
-    termMessage("Empire (text frontend placeholder) -- engine build OK, VERSION="
-	~ to!string(VERSION));
+    termMessage("Empire (text frontend) -- VERSION=" ~ to!string(VERSION));
 
     // Hard-wired for now: 1 human player + 1 computer player.
     gameSetup(2, false, DAtty, MTterm, DEFAULT_ROWS, DEFAULT_COLS);
 
-    while (true)
+    // Start the input thread
+    auto inputThread = new Thread(&inputThreadFunc);
+    inputThread.start();
+
+    // Main game loop: just call slice() repeatedly
+    while (slice() == 0)
     {
-	Player *p = Player.get(plynum);
-
-	if (p.human && p.display.text.inbuf == -1)
-	{
-	    int c = termGetKey();		// real blocking read
-	    p.display.text.TTunget(c);
-	}
-
-	if (slice() != 0)
-	    break;				// game over
+	// slice() returns 0 to continue, non-zero when game is over
     }
+
+    // Signal the input thread to shut down and wait for it
+    atomicStore(inputThreadShutdown, true);
+    inputThread.join();
 
     termDone();
     return 0;
