@@ -1,28 +1,46 @@
 /*
  * textmain.d
  *
- * Placeholder entry point for the text frontend.
+ * Entry point for the text frontend.
  *
- * Its job right now is to prove two things: that the platform-neutral
- * game engine -- empire.d, display.d, eplayer.d, feedback.d, init.d,
- * maps.d, mapdata.d, move.d, path.d, printf.d, sub2.d, text.d, var.d --
- * compiles and links cleanly on a non-Windows platform with no Win32
- * dependency anywhere in the chain, and that termio.d's blocking key
- * read actually works end to end for whichever backend was selected
- * (see dub.sdl's text-ncurses / text-termios configurations).
+ * Hard-wired for now to 1 human player + 1 computer player (see the
+ * gameSetup() call below) -- a real player-count prompt, or a
+ * command-line option, can replace that later without touching
+ * anything else here.
  *
- * This is NOT a playable game yet: there is no board setup, no real
- * input handling loop, no game loop tying input to slice()/tslice().
- * That's the real text-frontend work still to be done, and this file
- * is meant as its starting point.
+ * DEFAULT_ROWS/DEFAULT_COLS are passed to gameSetup() for the human
+ * player's Display.setdispsize() call. These are deliberately real
+ * terminal-ish dimensions, not Text.nrows/ncols (which are always
+ * the small VBUFROWS/VBUFCOLS message-buffer size -- see the comment
+ * on gameSetup() in init.d for why that distinction matters). A
+ * later improvement here would be to query the actual terminal size
+ * (ioctl TIOCGWINSZ, or ncurses' LINES/COLS) instead of a fixed
+ * default.
+ *
+ * The main loop mirrors winmain.d's idle-processing loop (PeekMessage
+ * + slice()), but without the busy-wait: since there's no message
+ * pump to service here, we can just check whether the player whose
+ * turn it logically is happens to be human and waiting on a key
+ * (Text.inbuf == -1), and only then do a real *blocking* read via
+ * termio.d -- fed in via TTunget() exactly the way winmain.d's
+ * WM_CHAR handler already does for the GUI build. Computer players'
+ * turns just run slice() at full speed, since there's nothing else
+ * that needs the CPU meanwhile.
  */
 
 module textmain;
 
 import std.conv : to;
 import std.stdio : writeln, stdout, write;
-import empire : VERSION;
+import empire : VERSION, DAtty, MTterm;
+import init : gameSetup;
+import move : slice;
+import eplayer : Player;
+import var : plynum;
 import termio : termInit, termDone, termGetKey, termMessage;
+
+enum int DEFAULT_ROWS = 24;
+enum int DEFAULT_COLS = 80;
 
 /*
  * text.d calls these two hooks (originally implemented only in
@@ -45,14 +63,24 @@ int main()
     termInit();
     termMessage("Empire (text frontend placeholder) -- engine build OK, VERSION="
 	~ to!string(VERSION));
-    termMessage("Press any key (a real blocking read -- no polling)...");
 
-    int c = termGetKey();
+    // Hard-wired for now: 1 human player + 1 computer player.
+    gameSetup(2, false, DAtty, MTterm, DEFAULT_ROWS, DEFAULT_COLS);
+
+    while (true)
+    {
+	Player *p = Player.get(plynum);
+
+	if (p.human && p.display.text.inbuf == -1)
+	{
+	    int c = termGetKey();		// real blocking read
+	    p.display.text.TTunget(c);
+	}
+
+	if (slice() != 0)
+	    break;				// game over
+    }
+
     termDone();
-
-    // Terminal is back to normal after termDone() for both backends,
-    // so plain stdio is fine here.
-    writeln("Got key: ", c);
-
     return 0;
 }

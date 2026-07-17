@@ -119,6 +119,7 @@ enum
     DAcom2	= 4,	// talk to com2:
     DAconsole	= 5,	// Win32 console
     DAwindows	= 6,	// Win32 GUI app
+    DAtty	= 7,	// text/terminal frontend
 }
 
 /////////////////////////////////

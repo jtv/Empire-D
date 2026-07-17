@@ -23,6 +23,7 @@ import twin;
 }
 
 import init;
+import text : VBUFROWS, VBUFCOLS;
 import feedback : play_sample, invalidateSector, invalidateLoc, ShowBlast,
     sound_gun, sound_bang, sound_error, sound_splash, sound_aground,
     sound_subjugate, sound_crushed, sound_flyby, sound_fcrash, sound_fuel,
@@ -1175,51 +1176,9 @@ void winSetup()
 	setran();
     }
 
-    Text *t = &player[0].display.text;
-
     //printf("Please wait seven days for creation of world...\n");
-    selmap();			// read in map
-    citini();			// init city variables
-
-    numply = global.numplayers - IDD_ONE + 1;
-    numleft = numply;
-    for (plynum = 0; plynum <= numply; plynum++)
-    {
-//PRINTF("player %d\n", plynum);
-	Player *p = &player[plynum];
-	p.display = new Display();
-	Display *d = p.display;
-	d.initialize();
-
-	p.num = plynum;
-	p.map = (plynum == 0) ? .map : cast(ubyte *)calloc(MAPSIZE,1);
-	p.human = (plynum == 1 && !global.demo);
-	p.watch = DAnone;
-
-	if (p.human)
-	{
-	    d.timeinterval = 1;
-	}
-	else
-	{
-	}
-
-	if (plynum == 1)
-	{
-	    p.secflg = 1;
-	    p.watch = DAwindows;
-	    d.text.TTinit();
-	    d.text.watch = p.watch;
-	    d.maptab = MTcgacolor;
-	    d.setdispsize(d.text.nrows, d.text.ncols);
-	    d.text.clear();
-	    d.text.block_cursor();
-	}
-	if (plynum)
-	    p.citsel();		// select city for each player
-    }
-
-    plynum = 1;			// get the default player
+    gameSetup(global.numplayers - IDD_ONE + 1, cast(bool) global.demo,
+	DAwindows, MTcgacolor, VBUFROWS, VBUFCOLS);
 }
 
 void winRestore()

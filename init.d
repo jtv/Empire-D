@@ -16,9 +16,12 @@
 
 
 import core.stdc.string : memset;
+import core.stdc.stdlib : calloc;
 import empire;
 import mapdata;
 import var;
+import eplayer;
+import display;
 
 /*****************************
  * Initialize city variables.
@@ -123,6 +126,81 @@ void klip()
 	}
 	row += Mcolmx + 1;
   }
+}
+
+
+/*****************************
+ * Set up a fresh game: read in the map, init city variables, and
+ * create/configure each player.
+ *
+ * This is the frontend-agnostic core of what used to be winmain.d's
+ * winSetup() -- that function read numply/demo out of a Win32 dialog
+ * box (via global.numplayers/global.demo) and hardcoded DAwindows/
+ * MTcgacolor for the human player's display. Everything else it did
+ * (selmap/citini, creating each Player's Display, citsel()) has no
+ * GUI dependency at all, so it lives here instead, with the frontend-
+ * specific bits taken as parameters:
+ *
+ *   numply_      how many players (including the human)
+ *   demo         if true, nobody is human -- everyone's computer-run
+ *   humanWatch   the human player's watch mode (e.g. DAwindows, DAtty)
+ *   humanMaptab  the human player's maptab (e.g. MTcgacolor, MTterm)
+ *   rows, cols   passed straight to Display.setdispsize() for the
+ *                human player. Text.nrows/ncols (set by TTinit()) are
+ *                NOT used for this -- they're always VBUFROWS/VBUFCOLS,
+ *                the small message-buffer size, not a real screen size,
+ *                in both the GUI and text builds; using them here
+ *                produces a degenerate (empty) sector viewport. The
+ *                GUI caller passes VBUFROWS/VBUFCOLS explicitly, which
+ *                keeps its behavior exactly as it was before this
+ *                function existed; the text frontend passes real
+ *                terminal dimensions instead.
+ *
+ * winmain.d's winSetup() and textmain.d both call this; each just
+ * supplies its own frontend's values.
+ */
+
+void gameSetup(int numply_, bool demo, ubyte humanWatch, uint humanMaptab,
+    int rows, int cols)
+{
+    selmap();			// read in map
+    citini();			// init city variables
+
+    numply = numply_;
+    numleft = numply;
+    for (plynum = 0; plynum <= numply; plynum++)
+    {
+	Player *p = &player[plynum];
+	p.display = new Display();
+	Display *d = p.display;
+	d.initialize();
+
+	p.num = plynum;
+	p.map = (plynum == 0) ? map.ptr : cast(ubyte *)calloc(MAPSIZE,1);
+	p.human = (plynum == 1 && !demo);
+	p.watch = DAnone;
+
+	if (p.human)
+	{
+	    d.timeinterval = 1;
+	}
+
+	if (plynum == 1)
+	{
+	    p.secflg = 1;
+	    p.watch = humanWatch;
+	    d.text.TTinit();
+	    d.text.watch = p.watch;
+	    d.maptab = humanMaptab;
+	    d.setdispsize(rows, cols);
+	    d.text.clear();
+	    d.text.block_cursor();
+	}
+	if (plynum)
+	    p.citsel();		// select city for each player
+    }
+
+    plynum = 1;			// get the default player
 }
 
 

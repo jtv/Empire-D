@@ -478,8 +478,8 @@ struct Player
 	    global.map = map;
 	    global.offsetx = 0;
 	    global.offsety = 0;
-	    d.secbas = loc;			// set new sector base
 	}
+	d.secbas = loc;			// set new sector base
 
 	invalidateSector();
     }
