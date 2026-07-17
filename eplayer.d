@@ -1425,7 +1425,9 @@ struct Player
 	{
 	    d.cityProdDemands();
 	    d.pcur(loc);				// position cursor
-// XXX: This loops forever.  We never get any character from TTin() yet, do we?
+	    // Wait for input from the text frontend's input thread (see
+	    // textmain.d) or from any other frontend's input mechanism.
+	    // TTin() now properly receives characters via TTunget().
             i = -1;
 	    while (i < 0)
 	    {   int ch = t.TTin();
