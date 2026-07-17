@@ -2,8 +2,8 @@
  * termio.d
  *
  * A minimal terminal I/O abstraction for the text frontend: put the
- * terminal into raw, unbuffered, non-echoing mode, block for exactly
- * one keystroke at a time, and restore the terminal afterwards.
+ * terminal into raw, unbuffered, non-echoing mode, wait for a keystroke
+ * with timeout, and restore the terminal afterwards.
  *
  * Empire's own input scheme is already plain ASCII (a QWEASDZXC-style
  * keypad layout for the 8 directions -- see cmdcur() in eplayer.d),
@@ -19,7 +19,9 @@
  *   - raw POSIX termios (the default otherwise): no dependency
  *     beyond druntime's core.sys.posix bindings.
  *
- * Both are real blocking reads -- no polling, no busy-waiting.
+ * Both use a half-second timeout: termGetKey() waits at most 500ms
+ * for a keystroke, returning -1 if the timeout expires. This allows
+ * the input thread to periodically check for shutdown requests.
  */
 
 module termio;
@@ -34,6 +36,7 @@ version (UseNcurses)
 	initscr();
 	cbreak();		// no line buffering
 	noecho();		// don't echo typed characters
+	timeout(500);		// wait at most 500ms (0.5 seconds) for input
     }
 
     void termDone()
@@ -43,7 +46,8 @@ version (UseNcurses)
 
     int termGetKey()
     {
-	return getch();	// blocks until a key is available
+	int c = getch();	// returns ERR (-1) if timeout expires
+	return c;		// -1 on timeout, or the character otherwise
     }
 
     /*
@@ -73,8 +77,8 @@ else version (Posix)
 	raw = origTermios;
 
 	raw.c_lflag &= ~(ICANON | ECHO);	// no line buffering, no echo
-	raw.c_cc[VMIN] = 1;			// block until >=1 byte is read
-	raw.c_cc[VTIME] = 0;			// no timeout
+	raw.c_cc[VMIN] = 0;			// don't require any bytes for read to return
+	raw.c_cc[VTIME] = 5;			// timeout after 0.5 seconds (5 deciseconds)
 
 	tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
     }
@@ -87,8 +91,8 @@ else version (Posix)
     int termGetKey()
     {
 	ubyte c;
-	auto n = read(STDIN_FILENO, &c, 1);	// blocks for one byte
-	return (n == 1) ? cast(int) c : -1;
+	auto n = read(STDIN_FILENO, &c, 1);	// returns 0 on timeout, 1 on success
+	return (n == 1) ? cast(int) c : -1;	// -1 on timeout or error
     }
 
     /*
