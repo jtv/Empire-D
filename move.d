@@ -49,12 +49,12 @@ int slice()
 	    break;
 
 	case 2:
-	    p = Player.get(plynum);
+	    p = Player.get(getPlynum());
 
 	    p.tslice();
-	    newnum = plynum ^ 3;	// 2 -> 1; 1 -> 2
-	    plynum = (Player.get(newnum).round > p.round + HYSTERESIS)
-		    ? plynum : newnum;
+	    newnum = getPlynum() ^ 3;	// 2 -> 1; 1 -> 2
+	    setPlynum((Player.get(newnum).round > p.round + HYSTERESIS)
+		    ? getPlynum() : newnum);
 	    break;
 
 	case 3:
@@ -63,12 +63,13 @@ int slice()
 
 		// Only allow move if we're not HYSTERESIS moves ahead of the others.
 
-		p = Player.get(plynum);
-		if (Player.get(e1[plynum]).round + HYSTERESIS > p.round &&
-		    Player.get(e2[plynum]).round + HYSTERESIS > p.round)
+		int currentPly = getPlynum();
+		p = Player.get(currentPly);
+		if (Player.get(e1[currentPly]).round + HYSTERESIS > p.round &&
+		    Player.get(e2[currentPly]).round + HYSTERESIS > p.round)
 		    p.tslice();		// move the player
 
-		plynum = (plynum >= 3) ? 1 : plynum + 1;
+		setPlynum((currentPly >= 3) ? 1 : currentPly + 1);
 	    }
 	    break;
 
@@ -76,7 +77,8 @@ int slice()
 	    {	int r;
 		int i;
 
-		p = Player.get(plynum);
+		int currentPly = getPlynum();
+		p = Player.get(currentPly);
 		r = p.round;
 		for (i = 1; 1; i++)
 		{
@@ -84,7 +86,7 @@ int slice()
 		    {	p.tslice();
 			break;
 		    }
-		    if (i == plynum)
+		    if (i == currentPly)
 			continue;
 
 		    // Only allow move if we're not HYSTERESIS moves ahead of the others.
@@ -92,7 +94,7 @@ int slice()
 			break;			// too far ahead, next player
 		}
 
-		plynum = (plynum >= numply) ? 1 : plynum + 1;
+		setPlynum((currentPly >= numply) ? 1 : currentPly + 1);
 	    }
 	    break;
     }
