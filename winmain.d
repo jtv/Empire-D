@@ -1193,8 +1193,10 @@ void winRestore()
 
     t.TTinit();
 
-    for (plynum = 0; plynum <= numply; plynum++)
-    {   Player *p = &player[plynum];
+    for (setPlynum(0); getPlynum() <= numply; setPlynum(getPlynum() + 1))
+    {   
+	int currentPly = getPlynum();
+	Player *p = &player[currentPly];
 	Display *d = new Display();
 	p.display = d;
 	d.initialize();
@@ -1207,7 +1209,7 @@ void winRestore()
 	{
 	}
 
-	if (plynum == 1)
+	if (currentPly == 1)
 	{
 	    p.secflg = 1;
 	    p.watch = DAwindows;
@@ -1219,7 +1221,7 @@ void winRestore()
 	    d.text.block_cursor();
 	}
     }
-    plynum = 1;			// get the default player
+    setPlynum(1);			// get the default player
 }
 
 /***************************************

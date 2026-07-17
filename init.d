@@ -168,16 +168,17 @@ void gameSetup(int numply_, bool demo, ubyte humanWatch, uint humanMaptab,
 
     numply = numply_;
     numleft = numply;
-    for (plynum = 0; plynum <= numply; plynum++)
+    for (setPlynum(0); getPlynum() <= numply; setPlynum(getPlynum() + 1))
     {
-	Player *p = &player[plynum];
+	int currentPly = getPlynum();
+	Player *p = &player[currentPly];
 	p.display = new Display();
 	Display *d = p.display;
 	d.initialize();
 
-	p.num = plynum;
-	p.map = (plynum == 0) ? map.ptr : cast(ubyte *)calloc(MAPSIZE,1);
-	p.human = (plynum == 1 && !demo);
+	p.num = currentPly;
+	p.map = (currentPly == 0) ? map.ptr : cast(ubyte *)calloc(MAPSIZE,1);
+	p.human = (currentPly == 1 && !demo);
 	p.watch = DAnone;
 
 	if (p.human)
@@ -185,7 +186,7 @@ void gameSetup(int numply_, bool demo, ubyte humanWatch, uint humanMaptab,
 	    d.timeinterval = 1;
 	}
 
-	if (plynum == 1)
+	if (currentPly == 1)
 	{
 	    p.secflg = 1;
 	    p.watch = humanWatch;
@@ -196,11 +197,11 @@ void gameSetup(int numply_, bool demo, ubyte humanWatch, uint humanMaptab,
 	    d.text.clear();
 	    d.text.block_cursor();
 	}
-	if (plynum)
+	if (currentPly)
 	    p.citsel();		// select city for each player
     }
 
-    plynum = 1;			// get the default player
+    setPlynum(1);			// get the default player
 }
 
 

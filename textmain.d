@@ -42,7 +42,7 @@ import empire : VERSION, DAtty, MTterm;
 import init : gameSetup;
 import move : slice;
 import eplayer : Player;
-import var : plynum;
+import var : getPlynum;
 import termio : termInit, termDone, termGetKey, termMessage;
 
 enum int DEFAULT_ROWS = 24;
@@ -80,7 +80,7 @@ void inputThreadFunc()
 	if (c != -1)
 	{
 	    // Feed character to the human player's input buffer
-	    Player *p = Player.get(plynum);
+	    Player *p = Player.get(getPlynum());
 	    if (p && p.human)
 		p.display.text.TTunget(c);
 	}

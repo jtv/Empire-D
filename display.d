@@ -897,7 +897,7 @@ void typcit(Player *p,City *c)
 
 void savgam()
 {
-    Text *t = &var.player[plynum].display.text;
+    Text *t = &var.player[getPlynum()].display.text;
 
     t.cmes(t.DS(3),"Saving game...\1");
     if (var_savgam("empire.dat"))
