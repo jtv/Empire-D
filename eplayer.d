@@ -56,6 +56,20 @@ struct Player
 
     static Player *get(int num) { return &player[num]; }
 
+    /*************************************
+     * Return the human player, if any.
+     */
+
+    static Player *getHumanPlayer()
+    {
+      for (int i = 1; i < numply; ++i)
+      {
+          Player *p = Player.get(i);
+	  if (p.human) return p;
+      }
+      return null;
+    }
+
     // Human player
     Unit *usv;		// current unit pointer
     int mode;		// mdXXXX: input modes

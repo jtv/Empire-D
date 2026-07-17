@@ -79,10 +79,12 @@ void inputThreadFunc()
 	int c = termGetKey();		// blocking read
 	if (c != -1)
 	{
-	    // Feed character to the human player's input buffer
-	    Player *p = Player.get(getPlynum());
-	    if (p && p.human)
-		p.display.text.TTunget(c);
+	    Player *human = Player.getHumanPlayer();
+	    if (human)
+	    {
+	        // Feed character to the human player's input buffer
+		human.display.text.TTunget(c);
+            }
 	}
     }
 }
