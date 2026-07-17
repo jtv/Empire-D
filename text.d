@@ -172,6 +172,8 @@ struct Text
 	    inbuf = -1;
 	}
 
+	if (c == -1)
+	    return -1;
 	return toUpper(cast(char)c);
     }
 
