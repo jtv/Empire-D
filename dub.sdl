@@ -16,8 +16,6 @@ sourceFiles "empire.d" "display.d" "eplayer.d" "feedback.d" "init.d" \
             "maps.d" "mapdata.d" "move.d" "path.d" "printf.d" "sub2.d" \
             "text.d" "var.d"
 
-buildRequirements "silenceWarnings"
-
 // --- Windows GUI build (the only target the old makefile produced) ---
 configuration "gui-windows" {
     platforms "windows"
