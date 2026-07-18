@@ -135,9 +135,8 @@ Unit[UNIMAX] unit;
  * Player variables.
  */
 
-int	numply = 0;		/* default number of players playing	*/
+int numply = 0;		/* default number of players playing	*/
 private int _plynum = 0;	/* which player is playing, 1..numply	*/
-private __gshared Mutex plynumMutex;	/* mutex protecting plynum access	*/
 bool concede = false;	/* set to true if computer concedes game */
 int	numleft = 0;		/* number of players left in the game	*/
 
@@ -146,13 +145,7 @@ int	numleft = 0;		/* number of players left in the game	*/
  */
 int getPlynum()
 {
-    if (plynumMutex is null)
-	return _plynum;	// uninitialized case
-    
-    synchronized (plynumMutex)
-    {
-	return _plynum;
-    }
+    return _plynum;
 }
 
 /*
@@ -160,27 +153,10 @@ int getPlynum()
  */
 void setPlynum(int value)
 {
-    if (plynumMutex is null)
-    {
-	_plynum = value;	// uninitialized case
-	return;
-    }
-    
-    synchronized (plynumMutex)
-    {
-	_plynum = value;
-    }
+    _plynum = value;
 }
 
-/*
- * Initialize the plynum mutex.
- */
-static this()
-{
-    plynumMutex = new Mutex();
-}
-
-Player[PLYMAX + 1] player;
+__gshared Player[PLYMAX + 1] player;
 
 ubyte savend = 0;		/* so we can find end of variable space	*/
 

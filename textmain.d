@@ -42,7 +42,6 @@ import empire : VERSION, DAtty, MTterm;
 import init : gameSetup;
 import move : slice;
 import eplayer : Player;
-import var : getPlynum;
 import termio : termInit, termDone, termGetKey, termMessage;
 
 enum int DEFAULT_ROWS = 24;

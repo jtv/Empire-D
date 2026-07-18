@@ -1431,26 +1431,25 @@ struct Player
 	{
 	    d.cityProdDemands();
 	    d.pcur(loc);				// position cursor
-	    // Wait for input from the text frontend's input thread (see
-	    // textmain.d) or from any other frontend's input mechanism.
-	    // TTin() now properly receives characters via TTunget().
-            i = -1;
-	    while (i < 0)
-	    {   int ch = t.TTin();
+	    // Wait for input (which TTin() inserts via TTunget()).
+	    i = -1;
+            do
+	    {
+	        int ch = t.TTin();
 	        if (ch < 0)
 		{
 		    // No keypress.  Don't poll full-time; sleep just a little
 		    // bit to reduce CPU load.
-		    // XXX: Can we make this properly event-driven?
 		    Thread.sleep(dur!"msecs"(50));
 		}
 		else
 		{
-		    ab = toUpper(t.TTin());		// get char from tty
+		    ab = toUpper(ch);		// get char from tty
 		    i = findTypeByChar(ab);
 		    if (i < 0) t.bell();
 		}
 	    }
+	    while (i < 0);
 	    t.curs(t.DS(0) + 25);		// where we want the prod to beg
 	    t.output(cast(char)(ab & 0xff));			// echo
 	}

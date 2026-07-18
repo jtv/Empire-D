@@ -160,6 +160,7 @@ void klip()
  * supplies its own frontend's values.
  */
 
+import std.stdio:writeln;// XXX:
 void gameSetup(int numply_, bool demo, ubyte humanWatch, uint humanMaptab,
     int rows, int cols)
 {

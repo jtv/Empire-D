@@ -152,7 +152,7 @@ int edger(loc_t loc)
 
 int chkloc(loc_t loc)
 {
-    return loc < MAPSIZE && !border(loc);
+    return (loc < MAPSIZE) && !border(loc);
 }
 
 void chkmov(dir_t r2)
