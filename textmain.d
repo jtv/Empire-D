@@ -79,12 +79,15 @@ void inputThreadFunc()
 	int c = termGetKey();		// blocking read
 	if (c != -1)
 	{
-	    Player *human = Player.getHumanPlayer();
-	    if (human)
+	    // Deliver the input to the human player, if there is one.
+	    // That's alwaays player 1 (although in demo mode, even that is
+	    // not a human).
+	    Player *human = Player.get(1);
+	    if (human.display)
 	    {
-	        // Feed character to the human player's input buffer
-		human.display.text.TTunget(c);
-            }
+	        // TODO: Mutex-protect display as well.  It goes away.
+	        human.display.text.TTunget(c);
+	    }
 	}
     }
 }
