@@ -61,11 +61,21 @@ version (UseNcurses)
 	printw("%s\n", toStringz(s));
 	refresh();
     }
+
+    // Terminal window size, in rows and columns.
+    void termSize(out int rows, out int cols)
+    {
+        // LINES and COLS get set in initscr(), by querying ncurses.
+        rows = LINES;
+	cols = COLS;
+    }
 }
 else version (Posix)
 {
+    import core.sys.posix.sys.ioctl : ioctl, TIOCGWINSZ, winsize;
     import core.sys.posix.termios;
     import core.sys.posix.unistd : read, STDIN_FILENO;
+    import textmain : DEFAULT_COLS, DEFAULT_ROWS;
 
     private termios origTermios;
 
@@ -106,6 +116,23 @@ else version (Posix)
 
 	writeln(s);
 	stdout.flush();
+    }
+
+    // Terminal window size, in rows and columns.
+    void termSize(out int rows, out int cols)
+    {
+        winsize ws;
+        if (ioctl(STDIN_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_row && ws.ws_col)
+        {
+            rows = ws.ws_row;
+            cols = ws.ws_col;
+	}
+	else
+	{
+	    // Didn't work.  Fall back to defaults.
+	    rows = DEFAULT_ROWS;
+	    cols = DEFAULT_COLS;
+	}
     }
 }
 else

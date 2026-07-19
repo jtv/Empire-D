@@ -38,12 +38,15 @@ import core.atomic : atomicLoad, atomicStore;
 import core.thread : Thread;
 import std.conv : to;
 import std.stdio : writeln, stdout, write;
+import std.string : toStringz;
 import empire : VERSION, DAtty, MTterm;
 import init : gameSetup;
 import move : slice;
 import eplayer : Player;
 import termio : termInit, termDone, termGetKey, termMessage;
 import text : vbuffer;
+
+version (UseNcurses) import deimos.ncurses : mvprintw, refresh;
 
 enum int DEFAULT_ROWS = 24;
 enum int DEFAULT_COLS = 80;
@@ -59,15 +62,10 @@ shared bool inputThreadShutdown = false;
  */
 extern (C) void win_flush()
 {
-    version (Ncurses)
+    version (UseNcurses)
     {
-        initscr();
-        scope (exit) endwin();
-
 	for (int row=0; row < 4; ++row)
-	    mvprintw(row, 0, "%s", vbuffer[row]);
-
-        refresh();
+	    mvprintw(row, 0, "%s", toStringz(vbuffer[row]));
     }
     else
     {

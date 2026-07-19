@@ -31,6 +31,7 @@ extern (C) void sound_click();
 enum int VBUFROWS	= 5;
 enum int VBUFCOLS	= 80;
 
+// The status display area, 80 columns wide and 5 lines deep.
 char[80 + 1][5] vbuffer;
 
 // For each text mode display, which can be either a tty or the
