@@ -43,7 +43,7 @@ import empire : VERSION, DAtty, MTterm;
 import init : gameSetup;
 import move : slice;
 import eplayer : Player;
-import termio : termInit, termDone, termGetKey, termMessage;
+import termio : termInit, termDone, termGetKey, termMessage, termResized, termSize;
 import text : vbuffer;
 
 version (UseNcurses) import deimos.ncurses : mvprintw, refresh;
@@ -92,7 +92,7 @@ void inputThreadFunc()
 {
     while (!atomicLoad(inputThreadShutdown))
     {
-	int c = termGetKey();		// blocking read
+	int c = termGetKey();		// blocking read, times out at 500ms
 	if (c != -1)
 	{
 	    // Deliver the input to the human player, if there is one.
@@ -104,6 +104,20 @@ void inputThreadFunc()
 	        // TODO: Mutex-protect display as well.  It goes away.
 	        human.display.text.TTunget(c);
 	    }
+	}
+
+	// termGetKey()'s 500ms timeout doubles as a poll interval for
+	// this: termResized() reports (and clears) whether SIGWINCH has
+	// fired since we last asked, so a resize is noticed no more than
+	// half a second late.
+	if (termResized())
+	{
+	    int rows, cols;
+	    termSize(rows, cols);
+
+	    Player *human = Player.get(1);
+	    if (human.display)
+	        human.display.setdispsize(rows, cols);
 	}
     }
 }

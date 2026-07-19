@@ -21,7 +21,8 @@
  *
  * Both use a half-second timeout: termGetKey() waits at most 500ms
  * for a keystroke, returning -1 if the timeout expires. This allows
- * the input thread to periodically check for shutdown requests.
+ * the input thread to periodically check for shutdown requests, and
+ * (see termResized()) for a pending terminal resize.
  */
 
 module termio;
@@ -69,15 +70,65 @@ version (UseNcurses)
         rows = LINES;
 	cols = COLS;
     }
+
+    /*
+     * Always false here: no SIGWINCH handler is installed for this
+     * backend. This is a stub, not a real check -- it exists only so
+     * that callers (textmain.d's input loop) can call termResized()
+     * unconditionally, without a version (UseNcurses) branch of their
+     * own. ncurses builds don't currently react to a resized window at
+     * all; wiring that up (e.g. via KEY_RESIZE from wgetch(), plus
+     * resizeterm()) is a separate piece of work from the one this stub
+     * is standing in for.
+     */
+    bool termResized()
+    {
+	return false;
+    }
 }
 else version (Posix)
 {
+    import core.atomic : atomicStore, atomicExchange;
+    import core.sys.posix.signal : sigaction, sigaction_t, sigemptyset;
     import core.sys.posix.sys.ioctl : ioctl, TIOCGWINSZ, winsize;
     import core.sys.posix.termios;
     import core.sys.posix.unistd : read, STDIN_FILENO;
     import textmain : DEFAULT_COLS, DEFAULT_ROWS;
 
     private termios origTermios;
+
+    /*
+     * SIGWINCH -- sent to the foreground process group whenever the
+     * terminal window changes size -- isn't part of POSIX proper, just a
+     * near-universal Unix extension, and druntime's core.sys.posix.signal
+     * doesn't define it. Its value is supplied here directly: 28 holds
+     * for Linux (all mainstream architectures), macOS/Darwin, and the
+     * BSDs. A platform not listed here doesn't have a known value and
+     * needs one added before it can use this backend.
+     */
+    version (linux)             private enum SIGWINCH = 28;
+    else version (OSX)          private enum SIGWINCH = 28;
+    else version (FreeBSD)      private enum SIGWINCH = 28;
+    else version (OpenBSD)      private enum SIGWINCH = 28;
+    else version (NetBSD)       private enum SIGWINCH = 28;
+    else version (DragonFlyBSD) private enum SIGWINCH = 28;
+    else
+	static assert(0, "termio.d: SIGWINCH value unknown for this platform");
+
+    // Set (from the signal handler) when SIGWINCH arrives, and cleared by
+    // termResized() once the caller has picked it up.
+    private shared bool termWasResized = false;
+
+    extern (C) private void winchHandler(int sig) nothrow @nogc
+    {
+	// Signal handlers must stick to async-signal-safe operations --
+	// no allocation, no locking, nothing that could reenter
+	// non-reentrant code. Setting a flag for the input thread to
+	// notice later is about all that's safe to do here; the actual
+	// re-query of the terminal size (termSize()) happens afterwards,
+	// on the input thread, not in the handler itself.
+	atomicStore(termWasResized, true);
+    }
 
     void termInit()
     {
@@ -91,6 +142,13 @@ else version (Posix)
 	raw.c_cc[VTIME] = 5;			// timeout after 0.5 seconds (5 deciseconds)
 
 	tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+
+	// Get notified whenever the terminal window changes size.
+	sigaction_t sa;
+	sa.sa_handler = &winchHandler;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = 0;
+	sigaction(SIGWINCH, &sa, null);
     }
 
     void termDone()
@@ -133,6 +191,18 @@ else version (Posix)
 	    rows = DEFAULT_ROWS;
 	    cols = DEFAULT_COLS;
 	}
+    }
+
+    /*
+     * True if the terminal has been resized (SIGWINCH) since the last
+     * call to termResized() -- calling this clears the flag, so it's a
+     * "were there any resizes since I last asked" check, not a snapshot
+     * of some persistent "is resized" state. A caller that gets true
+     * back should follow up with termSize() to get the new dimensions.
+     */
+    bool termResized()
+    {
+	return atomicExchange(&termWasResized, false);
     }
 }
 else
