@@ -43,6 +43,7 @@ import init : gameSetup;
 import move : slice;
 import eplayer : Player;
 import termio : termInit, termDone, termGetKey, termMessage;
+import text : vbuffer;
 
 enum int DEFAULT_ROWS = 24;
 enum int DEFAULT_COLS = 80;
@@ -58,7 +59,25 @@ shared bool inputThreadShutdown = false;
  */
 extern (C) void win_flush()
 {
-    stdout.flush();
+    version (Ncurses)
+    {
+        initscr();
+        scope (exit) endwin();
+
+	for (int row=0; row < 4; ++row)
+	    mvprintw(row, 0, "%s", vbuffer[row]);
+
+        refresh();
+    }
+    else
+    {
+        // Clear screen, move to top left position.
+	write("\033[2J\033[H");
+
+        // Print text buffer.
+        for (int row=0; row < 4; ++row)
+	    writeln(vbuffer[row]);
+    }
 }
 
 extern (C) void sound_click()
