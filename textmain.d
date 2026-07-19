@@ -35,11 +35,13 @@
 module textmain;
 
 import core.atomic : atomicLoad, atomicStore;
+import core.stdc.time : time;
 import core.thread : Thread;
 import std.conv : to;
+import std.getopt : getopt, defaultGetoptPrinter;
 import std.stdio : writeln, stdout, write;
 import std.string : toStringz;
-import empire : VERSION, DAtty, MTterm;
+import empire : VERSION, DAtty, MTterm, setran;
 import init : gameSetup;
 import move : slice;
 import eplayer : Player;
@@ -122,8 +124,22 @@ void inputThreadFunc()
     }
 }
 
-int main()
+int main(string[] args)
 {
+    uint seed = cast(uint) time(null);
+
+    auto helpInfo = getopt(args,
+        "seed|s", "Set fixed seed for randomizer.", &seed);
+    if (helpInfo.helpWanted)
+    {
+        defaultGetoptPrinter("Empire (text frontend)\n\n" ~
+	    "Usage: empire [--seed=N]\n",
+	    helpInfo.options);
+	return 0;
+    }
+
+    setran(seed);
+
     termInit();
     termMessage("Empire (text frontend) -- VERSION=" ~ to!string(VERSION));
 

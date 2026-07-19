@@ -23,7 +23,7 @@ import std.random : Mt19937, uniform;
 
 private Mt19937 rng;
 
-void setran() { rng.seed(37); }           // or combine two seeds with some expression
+void setran(uint seed = 37) { rng.seed(seed); }  // or combine two seeds with some expression
 uint random(uint p) { return uniform(0, p, rng); }
 uint ranq() { return uniform!uint(rng); }
 
