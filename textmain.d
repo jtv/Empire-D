@@ -41,12 +41,14 @@ import std.conv : to;
 import std.getopt : getopt, defaultGetoptPrinter;
 import std.stdio : writeln, stdout, write;
 import std.string : toStringz;
-import empire : VERSION, DAtty, MTterm, setran;
+import empire : VERSION, DAtty, MTterm, setran,
+    X, MAPunknown, MAPcity, MAPsea, MAPland, Mrowmx, Mcolmx, ROW, COL;
 import init : gameSetup;
 import move : slice;
 import eplayer : Player;
 import termio : termInit, termDone, termGetKey, termMessage, termResized, termSize;
 import text : vbuffer;
+import var : typx, typ, own;
 
 version (UseNcurses) import deimos.ncurses : mvprintw, refresh;
 
@@ -77,6 +79,116 @@ extern (C) void win_flush()
         // Print text buffer.
         for (int row=0; row < 4; ++row)
 	    writeln(vbuffer[row]);
+
+	// A blank separator line, then the current player's map view,
+	// using as much of the rest of the terminal as will fit.
+	writeln();
+	drawPlayerMap();
+    }
+}
+
+/*
+ * Render the human player's known map underneath the vbuffer text area
+ * (the same relative position the Windows frontend and the old PC/CGA
+ * terminal frontend show their map in), sized to use as much of the
+ * terminal as remains below the vbuffer display.
+ *
+ * Each map cell is shown as a single character -- var.d's typx[].unichr
+ * for units ('A','F','D','T','S','R','C','B'), 'O' for an owned city,
+ * '*' for an unowned one, '.' for sea, '+' for land, and a blank for
+ * still-unexplored territory -- coloured with ANSI escapes chosen to
+ * match the Windows frontend's per-player bitmap colours (red, yellow,
+ * magenta, cyan, white, and green for players 1..6; blue sea, green
+ * land).
+ *
+ * This only reflects what the player actually knows (human.map, the
+ * fog-of-war copy of the reference map), not the true state of the
+ * whole board.
+ */
+void drawPlayerMap()
+{
+    Player *human = Player.get(1);
+    if (human is null || human.map is null || human.display is null)
+	return;			// nothing to show yet
+
+    int termRows, termCols;
+    termSize(termRows, termCols);
+
+    // 4 lines of vbuffer, plus the blank separator line above.
+    int availRows = termRows - 4 - 1;
+    int availCols = termCols;
+    if (availRows <= 0 || availCols <= 0)
+	return;			// terminal too small to bother
+
+    int mapRows = (availRows < Mrowmx + 1) ? availRows : Mrowmx + 1;
+    int mapCols = (availCols < Mcolmx + 1) ? availCols : Mcolmx + 1;
+
+    // Centre the viewport on the player's cursor, clamped to the map.
+    int r0 = ROW(human.curloc) - mapRows / 2;
+    if (r0 < 0) r0 = 0;
+    if (r0 > Mrowmx + 1 - mapRows) r0 = Mrowmx + 1 - mapRows;
+
+    int c0 = COL(human.curloc) - mapCols / 2;
+    if (c0 < 0) c0 = 0;
+    if (c0 > Mcolmx + 1 - mapCols) c0 = Mcolmx + 1 - mapCols;
+
+    static immutable string[7] playerColour =
+	[ "",		// no player 0
+	  "\033[91m",	// player 1: red
+	  "\033[93m",	// player 2: yellow
+	  "\033[95m",	// player 3: magenta
+	  "\033[96m",	// player 4: cyan
+	  "\033[97m",	// player 5: white
+	  "\033[92m" ];	// player 6: green
+    enum string seaColour  = "\033[34m";
+    enum string landColour = "\033[32m";
+    enum string reverse    = "\033[7m";
+    enum string reset      = "\033[0m";
+
+    char[] line;
+    for (int r = 0; r < mapRows; r++)
+    {
+	line.length = 0;
+	for (int c = 0; c < mapCols; c++)
+	{
+	    int loc = (r0 + r) * (Mcolmx + 1) + (c0 + c);
+	    int v = human.map[loc];
+	    string colour;
+	    char ch;
+
+	    switch (v)
+	    {
+		case MAPunknown:
+		    ch = ' ';
+		    break;
+		case MAPcity:
+		    ch = '*';		// unowned city
+		    break;
+		case MAPsea:
+		    ch = '.';
+		    colour = seaColour;
+		    break;
+		case MAPland:
+		    ch = '+';
+		    colour = landColour;
+		    break;
+		default:
+		    int t = typ[v];
+		    ch = (t == X) ? 'O' : typx[t].unichr;
+		    colour = playerColour[own[v]];
+		    break;
+	    }
+
+	    bool atCursor = (loc == human.curloc);
+	    if (colour.length)
+		line ~= colour;
+	    if (atCursor)
+		line ~= reverse;
+	    line ~= ch;
+	    if (colour.length || atCursor)
+		line ~= reset;
+	}
+	writeln(line);
     }
 }
 
