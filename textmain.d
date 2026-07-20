@@ -68,7 +68,7 @@ extern (C) void win_flush()
 {
     version (UseNcurses)
     {
-	for (int row=0; row < 4; ++row)
+	for (int row=0; row < vbuffer.length; ++row)
 	    mvprintw(row, 0, "%s", toStringz(vbuffer[row]));
     }
     else
@@ -76,13 +76,15 @@ extern (C) void win_flush()
         // Clear screen, move to top left position.
 	write("\033[2J\033[H");
 
-        // Print text buffer.
-        for (int row=0; row < 4; ++row)
+        // Print text buffer. The last line doubles as a blank
+        // separator before the map -- it's blank except when a unit
+        // is active in Move mode, in which case it names the unit's
+        // type (see Display.headng()).
+        for (int row=0; row < vbuffer.length; ++row)
 	    writeln(vbuffer[row]);
 
-	// A blank separator line, then the current player's map view,
-	// using as much of the rest of the terminal as will fit.
-	writeln();
+	// The current player's map view, using as much of the rest of
+	// the terminal as will fit.
 	drawPlayerMap();
     }
 }
@@ -114,8 +116,9 @@ void drawPlayerMap()
     int termRows, termCols;
     termSize(termRows, termCols);
 
-    // 4 lines of vbuffer, plus the blank separator line above.
-    int availRows = termRows - 4 - 1;
+    // The vbuffer text area above (its last line doubles as the
+    // separator before the map -- see win_flush()).
+    int availRows = termRows - cast(int) vbuffer.length;
     int availCols = termCols;
     if (availRows <= 0 || availCols <= 0)
 	return;			// terminal too small to bother

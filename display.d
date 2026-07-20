@@ -370,6 +370,15 @@ struct Display
 	t.deleol();
 	t.curs(text.DS(1));
 	fncprt(u);				// print function
+
+	// Unit type, spelled out in full, on its own line. This is the
+	// only place the type is unambiguously called out on its own --
+	// the line above abbreviates or omits it in some cases (e.g. just
+	// "Your army", no separate word for the type) -- so it's the
+	// thing to check if you're not sure what you're about to move.
+	t.curs(text.DS(4));
+	t.vsmes("Type: %s", typx[u.typ].name);
+	t.deleol();
     }
 
 

@@ -211,6 +211,8 @@ struct Type
     char unichr;	// character representation for city phase purposes
     ubyte hittab;	// hits left (value for F is fuel, for A is 0
 			// for computer strategy)
+    immutable(char)* name;	// full name ("Army", "Fighter", etc.),
+				// for display purposes
 }
 
 enum
