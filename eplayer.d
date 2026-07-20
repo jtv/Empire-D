@@ -3103,6 +3103,15 @@ struct Player
 		typcit(&this,c);
 	    d.pcur(curloc);
 	    cmd = t.TTin();
+	    if (cmd == -1)
+	    {
+		// No keypress.  Same throttle as hmove()'s poll: sleep
+		// briefly instead of spinning, and skip the switch below
+		// so we don't fall into the default case and bell() on
+		// every empty poll.
+		Thread.sleep(dur!"msecs"(50));
+		continue;
+	    }
 	    switch (cmd)
 	    {
 		case 3:
