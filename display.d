@@ -377,7 +377,25 @@ struct Display
 	// "Your army", no separate word for the type) -- so it's the
 	// thing to check if you're not sure what you're about to move.
 	t.curs(text.DS(4));
-	t.vsmes("Type: %s", typx[u.typ].name);
+
+	switch (u.typ)
+	{
+	case F: // Fighter.  Show remaining fuel.
+	    t.vsmes("Type: %s, fuel: %d/%d",
+	    	typx[u.typ].name, u.hit, typx[F].hittab);
+	    break;
+	case T:  // Troop ship.  Show damage & troops on board.
+	    t.vsmes("Type: %s, strength: %d/%d, troops: %d/%d",
+	    	typx[u.typ].name, u.hit, typx[T].hittab, aboard(u), u.hit * 2);
+	    break;
+	case C:  // Carrier.  Show damage & fighters on board.
+	    t.vsmes("Type: %s, strength: %d/%d, planes: %d/%d",
+	    	typx[u.typ].name, u.hit, typx[C].hittab, aboard(u), u.hit);
+	    break;
+	default:
+	    t.vsmes("Type: %s", typx[u.typ].name);
+	    break;
+	}
 	t.deleol();
     }
 

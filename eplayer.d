@@ -666,6 +666,9 @@ struct Player
       d.pcur(p.curloc);			// position cursor
       if ((cmd = t.TTinr()) == -1)		// if no input from tty
       {   p.nrdy = 1;
+	    // No keypress.  Don't poll full-time; sleep just a little
+	    // bit to reduce CPU load (see phasin() for the same pattern).
+	    Thread.sleep(dur!"msecs"(50));
 	    return 0;			// not ready
       }
       p.nrdy = 0;				// reset flag
@@ -736,6 +739,8 @@ struct Player
 	    dirinp:	d.pcur(p.curloc);		// position cursor
 	    dirin:	if ((cmd = t.TTinr()) == -1)
 		    {   p.nrdy = 2;
+			// No keypress.  Same throttle as above.
+			Thread.sleep(dur!"msecs"(50));
 			return 0;		// player is not ready
 		    }
 		    p.nrdy = 0;	// reset flag
