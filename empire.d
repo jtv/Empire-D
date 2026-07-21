@@ -129,7 +129,7 @@ enum
 {
     MAPunknown	= 0,	// ' '
     MAPcity	= 1,	// '*'
-    MAPsea	= 2,	// '.'
+    MAPsea	= 2,	// '~'
     MAPland	= 3,	// '+'
 }
 

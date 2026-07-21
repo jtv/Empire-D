@@ -97,7 +97,7 @@ extern (C) void win_flush()
  *
  * Each map cell is shown as a single character -- var.d's typx[].unichr
  * for units ('A','F','D','T','S','R','C','B'), 'O' for an owned city,
- * '*' for an unowned one, '.' for sea, '+' for land, and a blank for
+ * '*' for an unowned one, '~' for sea, '+' for land, and a blank for
  * still-unexplored territory -- coloured with ANSI escapes chosen to
  * match the Windows frontend's per-player bitmap colours (red, yellow,
  * magenta, cyan, white, and green for players 1..6; blue sea, green
@@ -168,7 +168,7 @@ void drawPlayerMap()
 		    ch = '*';		// unowned city
 		    break;
 		case MAPsea:
-		    ch = '.';
+		    ch = '~';
 		    colour = seaColour;
 		    break;
 		case MAPland:

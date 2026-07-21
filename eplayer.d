@@ -1241,7 +1241,7 @@ struct Player
 		return true;		// ok if enemy
 	    return typ[ac] == T && !full(fnduni(z6));	// not full T
       }
-      if (ac == MAPsea)			// if '.'
+      if (ac == MAPsea)			// if '~'
 	    return true;
       if ((typ[ac] >= A) && (own[ac] != p.num))
 	    return true;			// it's enemy
@@ -1390,7 +1390,7 @@ struct Player
 
 	    return !full(ut);		// can't get on it it's full
       }
-      if (ac == MAPsea)			// if '.'
+      if (ac == MAPsea)			// if '~'
 	    return(true);
       if (typ[ac] == X && own[ac] == p.num) // if owned city
       {   if (u.ifo == IFOloadarmy)	// if computer strategy
