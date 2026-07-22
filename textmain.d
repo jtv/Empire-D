@@ -37,18 +37,34 @@ module textmain;
 import core.atomic : atomicLoad, atomicStore;
 import core.stdc.time : time;
 import core.thread : Thread;
+import core.time : MonoTime, msecs;
 import std.conv : to;
 import std.getopt : getopt, defaultGetoptPrinter;
 import std.stdio : writeln, stdout, write;
 import std.string : toStringz;
 import empire : VERSION, DAtty, MTterm, setran,
-    X, MAPunknown, MAPcity, MAPsea, MAPland, Mrowmx, Mcolmx, ROW, COL;
+    X, MAPunknown, MAPcity, MAPsea, MAPland, Mrowmx, Mcolmx, ROW, COL, mdMOVE;
 import init : gameSetup;
 import move : slice;
 import eplayer : Player;
+import maps : revealUnderneath, RevealKind;
 import termio : termInit, termDone, termGetKey, termMessage, termResized, termSize;
 import text : vbuffer;
 import var : typx, typ, own;
+
+/*
+ * Move-mode "blink": while a unit sits waiting for a direction key,
+ * its cell alternates every half second between its own highlighted
+ * image and revealUnderneath()'s answer for what's underneath it (a
+ * city, the ship it's aboard, etc. -- see maps.d). blinkOn is toggled
+ * by the main thread on a wall-clock schedule (see main(), below) and
+ * read by drawPlayerMap(), also on the main thread -- deliberately
+ * NOT touched from inputThreadFunc(): forcing a redraw from the input
+ * thread would write to the terminal (and read vbuffer) concurrently
+ * with the main thread doing the same, with no lock between them --
+ * see the existing "TODO: Mutex-protect display" note below.
+ */
+bool blinkOn = true;
 
 version (UseNcurses) import deimos.ncurses : mvprintw, refresh;
 
@@ -148,6 +164,12 @@ void drawPlayerMap()
     enum string reverse    = "\033[7m";
     enum string reset      = "\033[0m";
 
+    // The unit being moved, if we're in move mode -- see the blink
+    // handling below. human.curloc sits on this unit's own location
+    // for as long as hmove() is waiting for a direction key.
+    bool moving = (human.mode == mdMOVE && human.usv !is null);
+    int movingLoc = moving ? human.usv.loc : -1;
+
     char[] line;
     for (int r = 0; r < mapRows; r++)
     {
@@ -155,6 +177,38 @@ void drawPlayerMap()
 	for (int c = 0; c < mapCols; c++)
 	{
 	    int loc = (r0 + r) * (Mcolmx + 1) + (c0 + c);
+
+	    // The moving unit's own cell blinks between its own
+	    // highlighted image and whatever's underneath it (a city,
+	    // the ship it's aboard, etc.), rather than following the
+	    // normal rendering below -- see revealUnderneath()'s doc
+	    // comment in maps.d for why human.map[loc] alone isn't
+	    // enough to tell the two apart.
+	    if (moving && loc == movingLoc)
+	    {
+	        if (blinkOn)
+	        {
+	            line ~= playerColour[human.usv.own];
+	            line ~= reverse;
+	            line ~= typx[human.usv.typ].unichr;
+	            line ~= reset;
+	        }
+	        else
+	        {
+	            char rch; int rowner;
+	            auto kind = revealUnderneath(human.usv, rch, rowner);
+	            string rcolour = (kind == RevealKind.terrain)
+	                ? (rch == '~' ? seaColour : landColour)
+	                : (rowner ? playerColour[rowner] : "");
+	            if (rcolour.length)
+	                line ~= rcolour;
+	            line ~= rch;
+	            if (rcolour.length)
+	                line ~= reset;
+	        }
+	        continue;
+	    }
+
 	    int v = human.map[loc];
 	    string colour;
 	    char ch;
@@ -265,10 +319,34 @@ int main(string[] args)
     // Hard-wired for now: 1 human player + 1 computer player.
     gameSetup(2, false, DAtty, MTterm, DEFAULT_ROWS, DEFAULT_COLS);
 
-    // Main game loop: just call slice() repeatedly
+    // Main game loop: call slice() repeatedly, and blink the unit
+    // being moved every half second in between. This all happens on
+    // the main thread -- slice() (via hmove()) already sleeps briefly
+    // and returns whenever it's idling on a keypress, so this loop
+    // ticks often enough on its own to time the blink off the wall
+    // clock without needing the input thread's help. Deliberately
+    // not done on the input thread: see the note on blinkOn, above.
+    MonoTime lastBlink = MonoTime.currTime;
     while (slice() == 0)
     {
 	// slice() returns 0 to continue, non-zero when game is over
+
+	if (MonoTime.currTime - lastBlink >= 500.msecs)
+	{
+	    lastBlink = MonoTime.currTime;
+	    blinkOn = !blinkOn;
+
+	    Player *human = Player.get(1);
+	    if (human.display && human.mode == mdMOVE)
+	    {
+	        // Nothing about the message area changed, so flush()
+	        // would otherwise see anychanges == 0 and skip the
+	        // redraw -- force it, since the map itself needs to
+	        // change even though the text above it hasn't.
+	        human.display.text.anychanges = 1;
+	        human.display.text.flush();
+	    }
+	}
     }
 
     // Signal the input thread to shut down and wait for it

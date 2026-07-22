@@ -60,6 +60,90 @@ int tcaf(Unit *u)
 }
 
 
+/***********************************
+ * Kinds of thing revealUnderneath() can find hiding under a unit.
+ */
+
+enum RevealKind { city, unit, terrain }
+
+/***********************************
+ * Figure out what the player would see at u.loc if u itself weren't
+ * standing there: the city it's garrisoned in, the T or C it's
+ * aboard, a fellow passenger if u is itself the carrier, or --
+ * failing all of that -- the bare land or sea underneath.
+ *
+ * This exists for the text frontend's move-mode "blink": a unit
+ * being moved alternates between its own highlighted image and
+ * whatever this function reports, so a unit sitting in a city or
+ * stacked aboard a ship visibly reveals that it's contained, rather
+ * than looking like it's standing alone. See textmain.d.
+ *
+ * Only ever meaningful for the player's own unit u, so this never
+ * discloses anything the player doesn't already know just from
+ * having a unit of theirs standing at that spot.
+ *
+ * Output:
+ *	ch	character to display for whatever's underneath
+ *	owner	owning player number (0 for an unowned city, or terrain)
+ * Returns:
+ *	what kind of thing was found, so the caller knows how to
+ *	colour ch (by owner, or as plain land/sea).
+ */
+
+RevealKind revealUnderneath(Unit *u, out char ch, out int owner)
+{
+    loc_t loc = u.loc;
+
+    // A city always wins -- a garrisoned unit is never shown standing
+    // apart from its city.
+    for (int i = 0; i < CITMAX; i++)
+    {
+	if (city[i].loc == loc)
+	{
+	    owner = city[i].own;
+	    ch = owner ? 'O' : '*';
+	    return RevealKind.city;
+	}
+    }
+
+    // If u is a T or C, reveal one of the passengers it's carrying.
+    int cargo = tcaf(u);		// A if u's a T, F if u's a C, else -1
+    if (cargo >= 0)
+    {
+	for (int i = unitop; i--;)
+	{
+	    if (unit[i].loc == loc && unit[i].typ == cargo &&
+		unit[i].own == u.own)
+	    {
+		owner = unit[i].own;
+		ch = typx[cargo].unichr;
+		return RevealKind.unit;
+	    }
+	}
+    }
+
+    // If u is an A or F, reveal the T or C carrying it, if any.
+    int carrier = (u.typ == A) ? T : (u.typ == F) ? C : -1;
+    if (carrier >= 0)
+    {
+	for (int i = unitop; i--;)
+	{
+	    if (unit[i].loc == loc && unit[i].typ == carrier)
+	    {
+		owner = unit[i].own;
+		ch = typx[carrier].unichr;
+		return RevealKind.unit;
+	    }
+	}
+    }
+
+    // Nothing else stacked here: fall back to bare terrain, the same
+    // way updmap() infers it when a unit leaves a tile for good.
+    owner = 0;
+    ch = land[.map[loc]] ? '+' : '~';
+    return RevealKind.terrain;
+}
+
 /*******************************
  * Find and return distance between loc1 and loc2.
  */
