@@ -40,12 +40,12 @@ import core.thread : Thread;
 import core.time : MonoTime, msecs;
 import std.conv : to;
 import std.getopt : getopt, defaultGetoptPrinter;
-import std.stdio : writeln, stdout, write;
+import std.stdio : writeln, stdout, write, stderr;
 import std.string : toStringz;
 import empire : VERSION, DAtty, MTterm, setran,
     X, MAPunknown, MAPcity, MAPsea, MAPland, Mrowmx, Mcolmx, ROW, COL, mdMOVE,
     mdSURV, loc_t;
-import init : gameSetup;
+import init : gameSetup, gameRestore;
 import move : slice;
 import eplayer : Player;
 import maps : revealUnderneath, RevealKind;
@@ -298,13 +298,15 @@ void inputThreadFunc()
 int main(string[] args)
 {
     uint seed = cast(uint) time(null);
+    string loadFile;
 
     auto helpInfo = getopt(args,
-        "seed|s", "Set fixed seed for randomizer.", &seed);
+        "seed|s", "Set fixed seed for randomizer.", &seed,
+        "load|l", "Load a previously saved game from FILE.", &loadFile);
     if (helpInfo.helpWanted)
     {
         defaultGetoptPrinter("Empire (text frontend)\n\n" ~
-	    "Usage: empire [--seed=N]\n",
+	    "Usage: empire [--seed=N] [--load=FILE]\n",
 	    helpInfo.options);
 	return 0;
     }
@@ -318,8 +320,24 @@ int main(string[] args)
     auto inputThread = new Thread(&inputThreadFunc);
     inputThread.start();
 
-    // Hard-wired for now: 1 human player + 1 computer player.
-    gameSetup(2, false, DAtty, MTterm, DEFAULT_ROWS, DEFAULT_COLS);
+    if (loadFile.length)
+    {
+	if (gameRestore(toStringz(loadFile), DAtty, MTterm,
+		DEFAULT_ROWS, DEFAULT_COLS))
+	{
+	    atomicStore(inputThreadShutdown, true);
+	    inputThread.join();
+	    termDone();
+	    stderr.writeln("empire: could not load saved game from '" ~
+		loadFile ~ "'");
+	    return 1;
+	}
+    }
+    else
+    {
+	// Hard-wired for now: 1 human player + 1 computer player.
+	gameSetup(2, false, DAtty, MTterm, DEFAULT_ROWS, DEFAULT_COLS);
+    }
 
     // Main game loop: call slice() repeatedly, and blink the unit
     // being moved every half second in between. This all happens on

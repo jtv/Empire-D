@@ -206,3 +206,80 @@ void gameSetup(int numply_, bool demo, ubyte humanWatch, uint humanMaptab,
 }
 
 
+/*****************************
+ * Load a previously saved game from filename, and configure each
+ * player's Display exactly as gameSetup() would have for a fresh
+ * game.
+ *
+ * This is the frontend-agnostic core of what used to be winmain.d's
+ * IDM_OPEN handler together with winRestore() -- opening the file and
+ * calling resgam() to repopulate the saved variables (map, cities,
+ * units, players -- including numply itself, which is part of the
+ * saved block) is the same regardless of frontend; only the human
+ * player's watch mode/maptab/screen size are frontend-specific, so
+ * those are taken as parameters exactly like gameSetup()'s.
+ *
+ * Unlike gameSetup(), citsel() is deliberately NOT called here: the
+ * whole point of a save file is that cities are already selected the
+ * way the game was left, and citsel() picking a fresh city per player
+ * would throw that away.
+ *
+ * Params:
+ *   filename     path to the saved-game file (as written by
+ *                var_savgam())
+ *   humanWatch   the human player's watch mode (e.g. DAwindows, DAtty)
+ *   humanMaptab  the human player's maptab (e.g. MTcgacolor, MTterm)
+ *   rows, cols   passed straight to Display.setdispsize() for the
+ *                human player -- see gameSetup()'s doc comment for
+ *                why these can't just come from Text.nrows/ncols.
+ *
+ * Returns:
+ *	0	success
+ *	!=0	failure -- file could not be opened, or is corrupt/
+ *		truncated
+ */
+
+int gameRestore(const(char)* filename, ubyte humanWatch, uint humanMaptab,
+    int rows, int cols)
+{
+    import core.stdc.stdio : fopen, FILE;
+
+    FILE *fp = fopen(filename, "rb");
+    if (!fp)
+	return 1;
+
+    init_var();
+    if (resgam(fp))		// resgam() closes fp on every path
+	return 1;
+
+    for (setPlynum(0); getPlynum() <= numply; setPlynum(getPlynum() + 1))
+    {
+	int currentPly = getPlynum();
+	Player *p = &player[currentPly];
+	p.display = new Display();
+	Display *d = p.display;
+	d.initialize();
+
+	if (p.human)
+	{
+	    d.timeinterval = 1;
+	}
+
+	if (currentPly == 1)
+	{
+	    p.secflg = 1;
+	    p.watch = humanWatch;
+	    d.text.TTinit();
+	    d.text.watch = p.watch;
+	    d.maptab = humanMaptab;
+	    d.setdispsize(rows, cols);
+	    d.text.clear();
+	    d.text.block_cursor();
+	}
+    }
+
+    setPlynum(1);			// get the default player
+    return 0;
+}
+
+
