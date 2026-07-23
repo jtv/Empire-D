@@ -43,7 +43,8 @@ import std.getopt : getopt, defaultGetoptPrinter;
 import std.stdio : writeln, stdout, write;
 import std.string : toStringz;
 import empire : VERSION, DAtty, MTterm, setran,
-    X, MAPunknown, MAPcity, MAPsea, MAPland, Mrowmx, Mcolmx, ROW, COL, mdMOVE;
+    X, MAPunknown, MAPcity, MAPsea, MAPland, Mrowmx, Mcolmx, ROW, COL, mdMOVE,
+    mdSURV, loc_t;
 import init : gameSetup;
 import move : slice;
 import eplayer : Player;
@@ -162,6 +163,7 @@ void drawPlayerMap()
     enum string seaColour  = "\033[34m";
     enum string landColour = "\033[32m";
     enum string reverse    = "\033[7m";
+    enum string cyanBg     = "\033[46m";	// Survey mode cursor highlight
     enum string reset      = "\033[0m";
 
     // The unit being moved, if we're in move mode -- see the blink
@@ -240,7 +242,7 @@ void drawPlayerMap()
 	    if (colour.length)
 		line ~= colour;
 	    if (atCursor)
-		line ~= reverse;
+		line ~= (human.mode == mdSURV) ? cyanBg : reverse;
 	    line ~= ch;
 	    if (colour.length || atCursor)
 		line ~= reset;
@@ -327,16 +329,30 @@ int main(string[] args)
     // clock without needing the input thread's help. Deliberately
     // not done on the input thread: see the note on blinkOn, above.
     MonoTime lastBlink = MonoTime.currTime;
+
+    // Survey mode has no unit sitting under the cursor, so nothing
+    // else forces a redraw as the cursor moves over plain terrain --
+    // text.d's flush() only calls win_flush() when anychanges is set,
+    // and merely moving over a blank/sea/land cell doesn't print
+    // anything to the vbuffer (unlike landing on a unit or city,
+    // which does via headng()/typcit() and so redraws on its own).
+    // Track the cursor's last-seen location here and force a redraw
+    // whenever it moves, so drawPlayerMap()'s survey-cursor highlight
+    // keeps up with every keypress instead of only appearing to move
+    // when it happens to land on a unit or city.
+    loc_t lastSurveyLoc = loc_t.max;
+
     while (slice() == 0)
     {
 	// slice() returns 0 to continue, non-zero when game is over
+
+	Player *human = Player.get(1);
 
 	if (MonoTime.currTime - lastBlink >= 500.msecs)
 	{
 	    lastBlink = MonoTime.currTime;
 	    blinkOn = !blinkOn;
 
-	    Player *human = Player.get(1);
 	    if (human.display && human.mode == mdMOVE)
 	    {
 	        // Nothing about the message area changed, so flush()
@@ -346,6 +362,23 @@ int main(string[] args)
 	        human.display.text.anychanges = 1;
 	        human.display.text.flush();
 	    }
+	}
+
+	if (human.display && human.mode == mdSURV)
+	{
+	    if (human.curloc != lastSurveyLoc)
+	    {
+	        lastSurveyLoc = human.curloc;
+	        human.display.text.anychanges = 1;
+	        human.display.text.flush();
+	    }
+	}
+	else
+	{
+	    // Not in survey mode -- reset so re-entering it always
+	    // redraws at least once, even if curloc happens to match
+	    // whatever it was the last time survey mode was active.
+	    lastSurveyLoc = loc_t.max;
 	}
     }
 
