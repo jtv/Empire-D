@@ -69,8 +69,10 @@ enum RevealKind { city, unit, terrain }
 /***********************************
  * Figure out what the player would see at u.loc if u itself weren't
  * standing there: the city it's garrisoned in, the T or C it's
- * aboard, a fellow passenger if u is itself the carrier, or --
- * failing all of that -- the bare land or sea underneath.
+ * aboard (if u is an A or F), or -- failing that -- the bare land
+ * or sea underneath. A moving T or C never reveals its cargo this
+ * way: a ship blinks against its city or the terrain beneath it,
+ * not against the units it's carrying.
  *
  * This exists for the text frontend's move-mode "blink": a unit
  * being moved alternates between its own highlighted image and
@@ -106,21 +108,12 @@ RevealKind revealUnderneath(Unit *u, out char ch, out int owner)
 	}
     }
 
-    // If u is a T or C, reveal one of the passengers it's carrying.
-    int cargo = tcaf(u);		// A if u's a T, F if u's a C, else -1
-    if (cargo >= 0)
-    {
-	for (int i = unitop; i--;)
-	{
-	    if (unit[i].loc == loc && unit[i].typ == cargo &&
-		unit[i].own == u.own)
-	    {
-		owner = unit[i].own;
-		ch = typx[cargo].unichr;
-		return RevealKind.unit;
-	    }
-	}
-    }
+    // If u is a T or C, it isn't "hiding" behind its cargo -- a ship
+    // moving with passengers aboard should blink against the sea/land
+    // underneath it (or the city it's in, already handled above), not
+    // against one of the units it's carrying. So there's no cargo
+    // block here; T and C fall straight through to the terrain
+    // fallback below.
 
     // If u is an A or F, reveal the T or C carrying it, if any.
     int carrier = (u.typ == A) ? T : (u.typ == F) ? C : -1;
