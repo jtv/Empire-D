@@ -380,6 +380,9 @@ struct Display
 
 	switch (u.typ)
 	{
+	case A: // Army.  Nothing much to show.
+	    t.vsmes("Type: %s", typx[u.typ].name);
+	    break;
 	case F: // Fighter.  Show remaining fuel.
 	    t.vsmes("Type: %s, fuel: %d/%d",
 	    	typx[u.typ].name, u.hit, typx[F].hittab);
@@ -393,7 +396,8 @@ struct Display
 	    	typx[u.typ].name, u.hit, typx[C].hittab, aboard(u), u.hit);
 	    break;
 	default:
-	    t.vsmes("Type: %s", typx[u.typ].name);
+	    t.vsmes("Type: %s, strength: %d/%d",
+	            typx[u.typ].name, u.hit, typx[u.typ].hittab);
 	    break;
 	}
 	t.deleol();
