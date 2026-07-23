@@ -37,6 +37,23 @@ import core.thread : Thread;
 import core.time : dur;
 import std.uni : toUpper;
 
+
+/*************************************
+ * Pause briefly t throttle CPU usage while waiting for keyboard input.
+ *
+ * This is a compromise.  Our input model only allows us to busy-wait for key
+ * presses.  Wait for a bit to reduce CPU usage of a wait loop, but no so long
+ * that the game starts feeling unresponsive to key presses.
+ *
+ * TODO: Create a proper blocking version of TTinr()/TTin().
+ */
+
+void throttle_wait()
+{
+    Thread.sleep(dur!"msecs"(50));
+}
+
+
 // For each player
 
 struct Player
@@ -668,7 +685,7 @@ struct Player
       {   p.nrdy = 1;
 	    // No keypress.  Don't poll full-time; sleep just a little
 	    // bit to reduce CPU load (see phasin() for the same pattern).
-	    Thread.sleep(dur!"msecs"(50));
+	    throttle_wait();
 	    return 0;			// not ready
       }
       p.nrdy = 0;				// reset flag
@@ -740,7 +757,7 @@ struct Player
 	    dirin:	if ((cmd = t.TTinr()) == -1)
 		    {   p.nrdy = 2;
 			// No keypress.  Same throttle as above.
-			Thread.sleep(dur!"msecs"(50));
+			throttle_wait();
 			return 0;		// player is not ready
 		    }
 		    p.nrdy = 0;	// reset flag
@@ -1445,7 +1462,7 @@ struct Player
 		{
 		    // No keypress.  Don't poll full-time; sleep just a little
 		    // bit to reduce CPU load.
-		    Thread.sleep(dur!"msecs"(50));
+		    throttle_wait();
 		}
 		else
 		{
@@ -3109,7 +3126,7 @@ struct Player
 		// briefly instead of spinning, and skip the switch below
 		// so we don't fall into the default case and bell() on
 		// every empty poll.
-		Thread.sleep(dur!"msecs"(50));
+		throttle_wait();
 		continue;
 	    }
 	    switch (cmd)
