@@ -698,9 +698,9 @@ struct Player
       {   if (p.curloc == oldloc)	// if bad direction command
 		goto cmderr;		// then error
 	    if (p.mode == mdMOVE)		// if in move mode
-	    {   if (!p.seeifok(u,*pr2) &&	// if move is destructive
-		    !p.rusure())		// and he backs out
-		{   p.curloc = u.loc;
+	    {   if (!p.seeifok(u,*pr2))		// if move is destructive
+		{   p.curloc = u.loc;		// reset cursor to unit location
+		    p.cantmovehere();		// show error message
 		    goto cmdscn;		// give him another chance
 		}
 		goto done;			// we're done
@@ -727,9 +727,10 @@ struct Player
 	    case ' ':			// stay put
 		    *pr2 = -1;
 		    if (p.mode == mdMOVE)
-		    {   if (!p.seeifok(u,*pr2) &&	// if move is destructive
-			    !p.rusure())		// and he backs out
+		    {   if (!p.seeifok(u,*pr2))	// if move is destructive
+		    {   p.cantmovehere();		// show error message
 			    goto cmdscn;	// give him another chance
+		    }
 			goto done;		// only allowed in move mode
 		    }
 		    cmderror();
@@ -1175,6 +1176,17 @@ struct Player
     {
 	display.text.bell();
 	display.valcmd(mode);
+    }
+
+    /*****************************
+     * Unit cannot move to the selected location (would be destroyed).
+     */
+
+    void cantmovehere()
+    {
+	Text *t = &display.text;
+	t.bell();
+	t.cmes(t.DS(3),"This unit can't move here.\1\2");
     }
 
 
