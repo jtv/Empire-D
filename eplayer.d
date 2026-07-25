@@ -1089,6 +1089,15 @@ struct Player
       {   cmderror();
 	    return false;
       }
+
+      // When setting a movement (fnMO) order in TO mode, validate that the target
+      // is reachable and won't immediately destroy the unit
+      if (ifo == fnMO && p.mode == mdTO && !p.canReachTarget(u, ila))
+      {	p.display.text.bell();
+	p.display.text.vsmes("This unit can't move there.");
+	return false;
+      }
+
       if (p.mode != mdMOVE)		// then look at visible piece
       {   Unit *ui = fnduni(p.curloc);
 	    ui.ifo = cast(ubyte) (ifo & 0xff);
@@ -1365,6 +1374,58 @@ struct Player
 		assert(0);			// bad ifo
 		return false;
 	}
+    }
+
+    /**********************************
+     * Check if a target location is valid for a unit to move to (used in TO mode).
+     * This validates that the unit can eventually reach and enter the target cell.
+     * Input:
+     *	u	the unit
+     *	targetloc	the target location
+     * Returns:
+     *	true	if the target is reachable and the unit can enter it
+     *	false	if the target is unreachable or invalid (e.g., army to sea, ship to bare land)
+     */
+
+    int canReachTarget(Unit *u, loc_t targetloc)
+    {	int targetCell, type;
+      Player *p = &this;
+
+      targetCell = .map[targetloc];	// see what's at the target location
+      type = u.typ;			// what's our unit type?
+
+      if (type == A)			// if dealing with an Army
+      {	  if (targetCell == MAPland)	// if target is land
+		return true;
+	  if (targetCell == MAPcity)	// unowned city is OK
+		return true;
+	  if (typ[targetCell] == X && own[targetCell] == p.num) // owned city is OK
+		return true;
+	  if (typ[targetCell] == T && own[targetCell] == p.num) // friendly transport is OK
+		return true;
+	  if (targetCell == MAPsea)	// Army can't go to sea
+		return false;
+	  return false;			// anything else is invalid
+      }
+
+      if (targetCell == MAPsea)	// sea units can move to sea
+	  return true;
+
+      if (targetCell == MAPcity || (typ[targetCell] == X && own[targetCell] == p.num))
+	  return true;			// any unit can move to a city
+
+      if (type == F)			// if Fighter
+      {	  if (targetCell == MAPland)	// can move to land
+		return true;
+	  if (typ[targetCell] == C && own[targetCell] == p.num) // or friendly carrier
+		return true;
+	  return false;
+      }
+
+      if (targetCell == MAPland)	// transport/submarine can move to land
+	  return true;
+
+      return false;			// anything else is invalid
     }
 
     /**********************************
