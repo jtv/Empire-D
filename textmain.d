@@ -44,7 +44,7 @@ import std.stdio : writeln, stdout, write, stderr;
 import std.string : toStringz;
 import empire : VERSION, DAtty, MTterm, setran,
     X, MAPunknown, MAPcity, MAPsea, MAPland, Mrowmx, Mcolmx, ROW, COL, mdMOVE,
-    mdSURV, loc_t;
+    mdSURV, mdDIR, mdTO, loc_t;
 import init : gameSetup, gameRestore;
 import move : slice;
 import eplayer : Player;
@@ -242,7 +242,11 @@ void drawPlayerMap()
 	    if (colour.length)
 		line ~= colour;
 	    if (atCursor)
-		line ~= (human.mode == mdSURV) ? cyanBg : reverse;
+		line ~= (
+		    human.mode == mdSURV ||
+		    human.mode == mdDIR ||
+		    human.mode == mdTO
+		) ? cyanBg : reverse;
 	    line ~= ch;
 	    if (colour.length || atCursor)
 		line ~= reset;
@@ -253,7 +257,7 @@ void drawPlayerMap()
 
 extern (C) void sound_click()
 {
-    write('\a');	// ASCII bell
+    // TODO: Make a clicking sound.
 }
 
 /*
@@ -382,7 +386,7 @@ int main(string[] args)
 	    }
 	}
 
-	if (human.display && human.mode == mdSURV)
+	if (human.display && (human.mode == mdSURV || human.mode == mdDIR || human.mode == mdTO))
 	{
 	    if (human.curloc != lastSurveyLoc)
 	    {
