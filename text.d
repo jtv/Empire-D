@@ -20,9 +20,11 @@ module text;
 import core.stdc.stdarg;
 import core.stdc.stdio;
 import core.stdc.stdlib;
+import core.sync.event : Event;
 import core.sync.mutex : Mutex;
 import core.sys.posix.termios;
 import core.sys.posix.unistd;
+import core.time : dur;
 import std.ascii : toUpper;
 
 import empire;
@@ -34,10 +36,16 @@ extern (C) void sound_click();
 enum int VBUFROWS	= 5;
 enum int VBUFCOLS	= 80;
 
-private termios original_termios;
-
 // The status display area, 80 columns wide and 5 lines deep.
 char[80 + 1][5] vbuffer;
+
+version (Posix)
+{
+    // In Posix we run a separate input thread to receive keypresses and
+    // write them into a single-entry buffer.  This event signals the arrival
+    // of a key press to the main thread.
+    __gshared Event keyPressed;
+}
 
 // For each text mode display, which can be either a tty or the
 // PC screen in text mode.
@@ -139,11 +147,23 @@ struct Text
      * Get char from device. Wait until one is available.
      */
 
-    int TTin()
+    int TTin(int timeout = 500)
     {   int c;
 
 	c = TTinr();
-	return c;
+	version (Posix)
+	{
+	    if (c == -1)
+	    {
+		version (Posix)
+		{
+		    keyPressed.wait(dur!"msecs"(timeout));
+		}
+	        // Now try again.
+	        c = TTinr();
+	    }
+	    return c;
+	}
     }
 
 
@@ -176,11 +196,15 @@ struct Text
 	{
 	    c = inbuf;
 	    inbuf = -1;
+	    version (Posix)
+	    {
+	        keyPressed.reset();
+	    }
 	}
 
-	if (c == -1)
-	    return -1;
-	return toUpper(cast(char)c);
+	// In some configurations, 
+
+        return (c == -1) ? -1 : toUpper(cast(char)c);
     }
 
     void TTunget(int c)		// put character c in input
@@ -188,6 +212,10 @@ struct Text
 	synchronized (inbufMutex)
 	{
 	    inbuf = c;
+	    version (Posix)
+	    {
+	        keyPressed.set();
+	    }
 	}
     }
 
@@ -375,20 +403,20 @@ struct Text
     {
 	inbuf = -1;		// no character in input
 	inbufMutex = new Mutex();	// initialize mutex for thread-safe access
+
+	version (Posix)
+	{
+	    // Set up the Event with which the input thread signals to the
+	    // main thread that a key has been pressed.
+	    //
+	    // Arguments mean: manually cleared, and initially false.
+	    keyPressed.initialize(true, false);
+	}
+
 	//nrows = 160 / 10;
 	//ncols = 120 / 10;
 	nrows = VBUFROWS;
 	ncols = VBUFCOLS;
-
-        // Save original terminal settings, and configure for raw input.
-	if (tcgetattr(STDIN_FILENO, &original_termios) == 0)
-	{
-	    termios raw = original_termios;
-	    raw.c_lflag &= ~(ECHO | ICANON);
-	    raw.c_cc[VMIN] = 0;
-	    raw.c_cc[VTIME] = 0;
-	    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
-	}
     }
 
 
@@ -398,8 +426,6 @@ struct Text
 
     void TTdone()
     {
-        // Restore original terminal settings.
-	tcsetattr(STDIN_FILENO, TCSAFLUSH, &original_termios);
     }
 
     /***************************************

@@ -33,25 +33,7 @@ import winmain : global;
 import feedback : invalidateSector;
 
 import core.stdc.stdio : sprintf;
-import core.thread : Thread;
-import core.time : dur;
 import std.uni : toUpper;
-
-
-/*************************************
- * Pause briefly t throttle CPU usage while waiting for keyboard input.
- *
- * This is a compromise.  Our input model only allows us to busy-wait for key
- * presses.  Wait for a bit to reduce CPU usage of a wait loop, but no so long
- * that the game starts feeling unresponsive to key presses.
- *
- * TODO: Create a proper blocking version of TTinr()/TTin().
- */
-
-void throttle_wait()
-{
-    Thread.sleep(dur!"msecs"(50));
-}
 
 
 // For each player
@@ -79,7 +61,7 @@ struct Player
 
     // Human player
     Unit *usv;		// current unit pointer
-    int mode;		// mdXXXX: input modes
+    int mode;		// input modes: mdMOVE, mdSURV, mdDIR, etc.
     loc_t curloc;	// current location of cursor
     int frmloc;		// use when in TO mode
     int maxrng;
@@ -119,7 +101,7 @@ struct Player
 	if (!p.human)
 	{   int x;
 
-	    x = p.display.text.TTinr();
+	    x = p.display.text.TTin(100);
 	    switch (x)
 	    {   case 3:
 		    done(1);
@@ -681,11 +663,9 @@ struct Player
       p.sensor(u.loc);			// bring map up to date
     cmdin:
       d.pcur(p.curloc);			// position cursor
-      if ((cmd = t.TTinr()) == -1)		// if no input from tty
+      if ((cmd = t.TTin(100)) == -1)	// if no input from tty
       {   p.nrdy = 1;
-	    // No keypress.  Don't poll full-time; sleep just a little
-	    // bit to reduce CPU load (see phasin() for the same pattern).
-	    throttle_wait();
+	    // No keypress.
 	    return 0;			// not ready
       }
       p.nrdy = 0;				// reset flag
@@ -755,10 +735,9 @@ struct Player
 		    p.modsave = p.mode;
 		    p.setmode(mdDIR);		// new mode
 	    dirinp:	d.pcur(p.curloc);		// position cursor
-	    dirin:	if ((cmd = t.TTinr()) == -1)
+	    dirin:	if ((cmd = t.TTin(100)) == -1)
 		    {   p.nrdy = 2;
-			// No keypress.  Same throttle as above.
-			throttle_wait();
+			// No keypress.
 			return 0;		// player is not ready
 		    }
 		    p.nrdy = 0;	// reset flag
@@ -1533,9 +1512,7 @@ struct Player
 	        int ch = t.TTin();
 	        if (ch < 0)
 		{
-		    // No keypress.  Don't poll full-time; sleep just a little
-		    // bit to reduce CPU load.
-		    throttle_wait();
+		    // No keypress.
 		}
 		else
 		{
@@ -3195,11 +3172,7 @@ struct Player
 	    cmd = t.TTin();
 	    if (cmd == -1)
 	    {
-		// No keypress.  Same throttle as hmove()'s poll: sleep
-		// briefly instead of spinning, and skip the switch below
-		// so we don't fall into the default case and bell() on
-		// every empty poll.
-		throttle_wait();
+		// No keypress.
 		continue;
 	    }
 	    switch (cmd)

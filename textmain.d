@@ -273,12 +273,12 @@ void inputThreadFunc()
 	if (c != -1)
 	{
 	    // Deliver the input to the human player, if there is one.
-	    // That's alwaays player 1 (although in demo mode, even that is
+	    // That's always player 1 (although in demo mode, even that is
 	    // not a human).
 	    Player *human = Player.get(1);
+	    // TODO: Mutex-protect display as well.  It goes away.
 	    if (human.display)
 	    {
-	        // TODO: Mutex-protect display as well.  It goes away.
 	        human.display.text.TTunget(c);
 	    }
 	}

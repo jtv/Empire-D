@@ -93,6 +93,8 @@ else version (Posix)
     import core.sys.posix.sys.ioctl : ioctl, TIOCGWINSZ, winsize;
     import core.sys.posix.termios;
     import core.sys.posix.unistd : read, STDIN_FILENO;
+    import core.thread : Thread;
+    import core.time : dur;
     import textmain : DEFAULT_COLS, DEFAULT_ROWS;
 
     private termios origTermios;
@@ -160,6 +162,16 @@ else version (Posix)
     {
 	ubyte c;
 	auto n = read(STDIN_FILENO, &c, 1);	// returns 0 on timeout, 1 on success
+	if (n < 1)
+	{
+	    // Avoid busy-waiting a CPU away; sleep and try again.  It's a dumb way to
+	    // work, but the timeout on stdin doesn't seem to do the trick.
+	    // Which means otherwise we'd be busy-waiting full-time and
+	    // burning up the CPU.
+	    Thread.sleep(dur!"msecs"(50));
+	    n = read(STDIN_FILENO, &c, 1);	// returns 0 on timeout, 1 on success
+
+	}
 	return (n == 1) ? cast(int) c : -1;	// -1 on timeout or error
     }
 
