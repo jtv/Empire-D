@@ -67,10 +67,21 @@ import var : typx, typ, own;
  */
 bool blinkOn = true;
 
-version (UseNcurses) import deimos.ncurses : mvprintw, refresh;
+version (UseNcurses) import deimos.ncurses : mvprintw, mvaddch, refresh,
+    color_set, attron, attroff, A_REVERSE, A_BOLD, A_NORMAL;
 
 enum int DEFAULT_ROWS = 24;
 enum int DEFAULT_COLS = 80;
+
+// ncurses color pair numbers for the map display
+enum int COLOUR_SEA = 1;
+enum int COLOUR_LAND = 2;
+enum int COLOUR_PLAYER_1 = 3;
+enum int COLOUR_PLAYER_2 = 4;
+enum int COLOUR_PLAYER_3 = 5;
+enum int COLOUR_PLAYER_4 = 6;
+enum int COLOUR_PLAYER_5 = 7;
+enum int COLOUR_PLAYER_6 = 8;
 
 // Shared flag to signal the input thread to shut down
 shared bool inputThreadShutdown = false;
@@ -87,6 +98,10 @@ extern (C) void win_flush()
     {
 	for (int row=0; row < vbuffer.length; ++row)
 	    mvprintw(row, 0, "%s", toStringz(vbuffer[row]));
+	// The current player's map view, using as much of the rest of
+	// the terminal as will fit.
+	drawPlayerMapNcurses();
+	refresh();
     }
     else
     {
@@ -103,6 +118,130 @@ extern (C) void win_flush()
 	// The current player's map view, using as much of the rest of
 	// the terminal as will fit.
 	drawPlayerMap();
+    }
+}
+
+/*
+ * Render the human player's known map using ncurses, underneath the vbuffer
+ * text area, sized to use as much of the terminal as remains below it.
+ *
+ * Each map cell is shown as a single character -- var.d's typx[].unichr
+ * for units ('A','F','D','T','S','R','C','B'), 'O' for an owned city,
+ * '*' for an unowned one, '~' for sea, '+' for land, and a blank for
+ * still-unexplored territory -- coloured with ncurses color pairs matching
+ * the termios frontend's ANSI escape sequences (red, yellow, magenta, cyan,
+ * white, and green for players 1..6; blue sea, green land).
+ *
+ * This only reflects what the player actually knows (human.map, the
+ * fog-of-war copy of the reference map), not the true state of the
+ * whole board.
+ */
+version (UseNcurses)
+void drawPlayerMapNcurses()
+{
+    Player *human = Player.get(1);
+    if (human is null || human.map is null || human.display is null)
+	return;			// nothing to show yet
+
+    int termRows, termCols;
+    termSize(termRows, termCols);
+
+    // The vbuffer text area above
+    int availRows = termRows - cast(int) vbuffer.length;
+    int availCols = termCols;
+    if (availRows <= 0 || availCols <= 0)
+	return;			// terminal too small to bother
+
+    int mapRows = (availRows < Mrowmx + 1) ? availRows : Mrowmx + 1;
+    int mapCols = (availCols < Mcolmx + 1) ? availCols : Mcolmx + 1;
+
+    // Centre the viewport on the player's cursor, clamped to the map.
+    int r0 = ROW(human.curloc) - mapRows / 2;
+    if (r0 < 0) r0 = 0;
+    if (r0 > Mrowmx + 1 - mapRows) r0 = Mrowmx + 1 - mapRows;
+
+    int c0 = COL(human.curloc) - mapCols / 2;
+    if (c0 < 0) c0 = 0;
+    if (c0 > Mcolmx + 1 - mapCols) c0 = Mcolmx + 1 - mapCols;
+
+    // The unit being moved, if we're in move mode
+    bool moving = (human.mode == mdMOVE && human.usv !is null);
+    int movingLoc = moving ? human.usv.loc : -1;
+
+    int screenRow = cast(int) vbuffer.length;
+    for (int r = 0; r < mapRows; r++)
+    {
+	for (int c = 0; c < mapCols; c++)
+	{
+	    int loc = (r0 + r) * (Mcolmx + 1) + (c0 + c);
+	    char ch;
+	    int colourPair = 0;
+
+	    // The moving unit's own cell blinks between its own
+	    // highlighted image and whatever's underneath it
+	    if (moving && loc == movingLoc)
+	    {
+		if (blinkOn)
+		{
+		    ch = typx[human.usv.typ].unichr;
+		    colourPair = COLOUR_PLAYER_1 + human.usv.own - 1;
+		    attron(A_REVERSE);
+		}
+		else
+		{
+		    char rch; int rowner;
+		    auto kind = revealUnderneath(human.usv, rch, rowner);
+		    ch = rch;
+		    if (kind == RevealKind.terrain)
+			colourPair = (rch == '~') ? COLOUR_SEA : COLOUR_LAND;
+		    else if (rowner)
+			colourPair = COLOUR_PLAYER_1 + rowner - 1;
+		    else
+			colourPair = 0;
+		}
+		mvaddch(screenRow, c, ch);
+		if (moving && loc == movingLoc && blinkOn)
+		    attroff(A_REVERSE);
+		continue;
+	    }
+
+	    int v = human.map[loc];
+
+	    switch (v)
+	    {
+		case MAPunknown:
+		    ch = ' ';
+		    break;
+		case MAPcity:
+		    ch = '*';		// unowned city
+		    break;
+		case MAPsea:
+		    ch = '~';
+		    colourPair = COLOUR_SEA;
+		    break;
+		case MAPland:
+		    ch = '+';
+		    colourPair = COLOUR_LAND;
+		    break;
+		default:
+		    int t = typ[v];
+		    ch = (t == X) ? 'O' : typx[t].unichr;
+		    colourPair = COLOUR_PLAYER_1 + own[v] - 1;
+		    break;
+	    }
+
+	    bool atCursor = (loc == human.curloc);
+	    if (colourPair)
+		color_set(cast(short) colourPair, null);
+	    if (atCursor)
+		attron(A_REVERSE);
+	    mvaddch(screenRow, c, ch);
+	    if (atCursor)
+		attroff(A_REVERSE);
+	    if (colourPair)
+		color_set(cast(short) 0, null);
+	}
+	screenRow++;
     }
 }
 

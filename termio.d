@@ -30,6 +30,9 @@ module termio;
 version (UseNcurses)
 {
     import deimos.ncurses;
+    import deimos.ncurses : has_colors, start_color, init_pair,
+        COLOR_BLUE, COLOR_BLACK, COLOR_GREEN, COLOR_RED, COLOR_YELLOW,
+        COLOR_MAGENTA, COLOR_CYAN, COLOR_WHITE;
     import std.string : toStringz;
 
     void termInit()
@@ -38,6 +41,24 @@ version (UseNcurses)
 	cbreak();		// no line buffering
 	noecho();		// don't echo typed characters
 	timeout(500);		// wait at most 500ms (0.5 seconds) for input
+
+	// Initialize colour pairs for map display if the terminal supports colours
+	if (has_colors())
+	{
+	    start_color();
+	    // Color pairs: (fg, bg)
+	    // 1: sea (blue on black)
+	    init_pair(1, COLOR_BLUE, COLOR_BLACK);
+	    // 2: land (green on black)
+	    init_pair(2, COLOR_GREEN, COLOR_BLACK);
+	    // 3-8: players 1-6 (red, yellow, magenta, cyan, white, green on black)
+	    init_pair(3, COLOR_RED, COLOR_BLACK);
+	    init_pair(4, COLOR_YELLOW, COLOR_BLACK);
+	    init_pair(5, COLOR_MAGENTA, COLOR_BLACK);
+	    init_pair(6, COLOR_CYAN, COLOR_BLACK);
+	    init_pair(7, COLOR_WHITE, COLOR_BLACK);
+	    init_pair(8, COLOR_GREEN, COLOR_BLACK);
+	}
     }
 
     void termDone()
