@@ -19,7 +19,10 @@ module text;
 
 import core.stdc.stdarg;
 import core.stdc.stdio;
+import core.stdc.stdlib;
 import core.sync.mutex : Mutex;
+import core.sys.posix.termios;
+import core.sys.posix.unistd;
 import std.ascii : toUpper;
 
 import empire;
@@ -30,6 +33,8 @@ extern (C) void sound_click();
 
 enum int VBUFROWS	= 5;
 enum int VBUFCOLS	= 80;
+
+private termios original_termios;
 
 // The status display area, 80 columns wide and 5 lines deep.
 char[80 + 1][5] vbuffer;
@@ -374,6 +379,16 @@ struct Text
 	//ncols = 120 / 10;
 	nrows = VBUFROWS;
 	ncols = VBUFCOLS;
+
+        // Save original terminal settings, and configure for raw input.
+	if (tcgetattr(STDIN_FILENO, &original_termios) == 0)
+	{
+	    termios raw = original_termios;
+	    raw.c_lflag &= ~(ECHO | ICANON);
+	    raw.c_cc[VMIN] = 0;
+	    raw.c_cc[VTIME] = 0;
+	    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+	}
     }
 
 
@@ -383,6 +398,8 @@ struct Text
 
     void TTdone()
     {
+        // Restore original terminal settings.
+	tcsetattr(STDIN_FILENO, TCSAFLUSH, &original_termios);
     }
 
     /***************************************
