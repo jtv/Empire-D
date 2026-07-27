@@ -587,6 +587,7 @@ struct Player
 	    c.own);			// already owned
         c.own = cast(ubyte) p.num;			// claim the city
         .map[loc] = cast(byte) (4 + (p.num - 1) * 10);	// set map value
+	p.curloc = loc;			// Position cursor on intial city.
         p.sensor(loc);			// do a sensor probe
         if (p.human)			// if human player
 	    p.phasin(c);		// get city phase

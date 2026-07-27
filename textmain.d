@@ -34,6 +34,8 @@
 
 module textmain;
 
+import display : Display;
+
 import core.atomic : atomicLoad, atomicStore;
 import core.stdc.time : time;
 import core.thread : Thread;
@@ -85,6 +87,33 @@ enum int COLOUR_PLAYER_6 = 8;
 
 // Shared flag to signal the input thread to shut down
 shared bool inputThreadShutdown = false;
+
+
+/***********************
+ * Return the human player, if any.
+ *
+ * If checkHumanity is set, return null if the player isn't *really* human
+ * (as would happen in demo mode).
+ */
+Player *getHuman(bool checkHumanity)
+{
+    Player *player = Player.get(1);
+    if (player == null)
+        return null;
+    else if (checkHumanity && !player.human)
+        return null;
+    else
+        return player;
+}
+
+
+// Obtain the human player's Display, if any.  Don't care if actually human.
+Display *getHumanDisplay(bool checkHumanity)
+{
+    Player *human = getHuman(checkHumanity);
+    return human ? human.display : null;
+}
+
 
 /*
  * text.d calls these two hooks (originally implemented only in
@@ -139,7 +168,7 @@ extern (C) void win_flush()
 version (UseNcurses)
 void drawPlayerMapNcurses()
 {
-    Player *human = Player.get(1);
+    Player *human = getHuman(false);
     if (human is null || human.map is null || human.display is null)
 	return;			// nothing to show yet
 
@@ -265,7 +294,7 @@ void drawPlayerMapNcurses()
  */
 void drawPlayerMap()
 {
-    Player *human = Player.get(1);
+    Player *human = getHuman(false);
     if (human is null || human.map is null || human.display is null)
 	return;			// nothing to show yet
 
@@ -414,12 +443,9 @@ void inputThreadFunc()
 	    // Deliver the input to the human player, if there is one.
 	    // That's always player 1 (although in demo mode, even that is
 	    // not a human).
-	    Player *human = Player.get(1);
-	    // TODO: Mutex-protect display as well.  It goes away.
-	    if (human.display)
-	    {
-	        human.display.text.TTunget(c);
-	    }
+	    Display *display = getHumanDisplay(false);
+	    if (display)
+	        display.text.TTunget(c);
 	}
 
 	// termGetKey()'s 500ms timeout doubles as a poll interval for
@@ -431,9 +457,9 @@ void inputThreadFunc()
 	    int rows, cols;
 	    termSize(rows, cols);
 
-	    Player *human = Player.get(1);
-	    if (human.display)
-	        human.display.setdispsize(rows, cols);
+	    Display *display = getHumanDisplay(false);
+	    if (display)
+	        display.setdispsize(rows, cols);
 	}
     }
 }
@@ -482,6 +508,10 @@ int main(string[] args)
 	gameSetup(2, false, DAtty, MTterm, DEFAULT_ROWS, DEFAULT_COLS);
     }
 
+    Display *display = getHumanDisplay(false);
+    if (display)
+        display.text.flush();
+
     // Main game loop: call slice() repeatedly, and blink the unit
     // being moved every half second in between. This all happens on
     // the main thread -- slice() (via hmove()) already sleeps briefly
@@ -507,7 +537,7 @@ int main(string[] args)
     {
 	// slice() returns 0 to continue, non-zero when game is over
 
-	Player *human = Player.get(1);
+	Player *human = getHuman(false);
 
 	if (MonoTime.currTime - lastBlink >= 500.msecs)
 	{

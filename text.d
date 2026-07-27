@@ -401,8 +401,9 @@ struct Text
 
     void TTinit()
     {
-	inbuf = -1;		// no character in input
-	inbufMutex = new Mutex();	// initialize mutex for thread-safe access
+	inbuf = -1;			// No character in input.
+	anychanges = 1;			// Force initial display update.
+	inbufMutex = new Mutex();	// Input thread passes input to main thread.
 
 	version (Posix)
 	{
