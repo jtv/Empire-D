@@ -142,7 +142,7 @@ extern (C) void win_flush()
         // is active in Move mode, in which case it names the unit's
         // type (see Display.headng()).
         for (int row=0; row < vbuffer.length; ++row)
-	    writeln(vbuffer[row]);
+	    writeln(vbuffer[row][1 .. $-1]);
 
 	// The current player's map view, using as much of the rest of
 	// the terminal as will fit.
@@ -228,9 +228,13 @@ void drawPlayerMapNcurses()
 		    else
 			colourPair = 0;
 		}
+		if (colourPair)
+		    color_set(cast(short) colourPair, null);
 		mvaddch(screenRow, c, ch);
 		if (moving && loc == movingLoc && blinkOn)
 		    attroff(A_REVERSE);
+		if (colourPair)
+		    color_set(cast(short) 0, null);
 		continue;
 	    }
 
