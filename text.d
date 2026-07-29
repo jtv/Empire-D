@@ -45,6 +45,7 @@ version (Posix)
     // write them into a single-entry buffer.  This event signals the arrival
     // of a key press to the main thread.
     __gshared Event keyPressed;
+    public shared Mutex mutex;	// mediates betwween main & input threads.
 }
 
 // For each text mode display, which can be either a tty or the
@@ -62,7 +63,6 @@ struct Text
     int ncols;			// total number of columns in display
     int inbuf;			// -1 if empty, otherwise next character to be read
     int anychanges;		// !=0 if any changes since last flush()
-    Mutex inbufMutex;		// protects inbuf for thread-safe access
 
     void deleol()		// erase to end of line
     {
@@ -181,8 +181,8 @@ struct Text
      * the GUI build already works: winmain.d's WM_CHAR handler
      * calls TTunget(), it doesn't happen here either.
      *
-     * Thread-safe: uses inbufMutex to synchronize access with the
-     * input thread (text frontend) or message handler (GUI frontend).
+     * Thread-safe: uses mutex to synchronize access with the input thread
+     * (text frontends) or message handler (GUI frontend).
      */
 
     int TTinr()
@@ -192,7 +192,7 @@ struct Text
 	if (watch == DAnone)
 	    return -1;
 
-	synchronized (inbufMutex)
+	synchronized (mutex)
 	{
 	    c = inbuf;
 	    inbuf = -1;
@@ -209,7 +209,7 @@ struct Text
 
     void TTunget(int c)		// put character c in input
     {
-	synchronized (inbufMutex)
+	synchronized (mutex)
 	{
 	    inbuf = c;
 	    version (Posix)
@@ -403,7 +403,7 @@ struct Text
     {
 	inbuf = -1;			// No character in input.
 	anychanges = 1;			// Force initial display update.
-	inbufMutex = new Mutex();	// Input thread passes input to main thread.
+	mutex = new shared Mutex();	// We run a separate input thread.
 
 	version (Posix)
 	{

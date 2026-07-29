@@ -69,8 +69,12 @@ import var : typx, typ, own;
  */
 bool blinkOn = true;
 
-version (UseNcurses) import deimos.ncurses : mvprintw, mvaddch, refresh,
-    color_set, attron, attroff, A_REVERSE, A_BOLD, A_NORMAL;
+version (UseNcurses)
+{
+    import text : mutex;
+    import deimos.ncurses : mvprintw, mvaddch, refresh,
+        color_set, attron, attroff, A_REVERSE, A_BOLD, A_NORMAL;
+}
 
 enum int DEFAULT_ROWS = 24;
 enum int DEFAULT_COLS = 80;
@@ -125,12 +129,17 @@ extern (C) void win_flush()
 {
     version (UseNcurses)
     {
-	for (int row=0; row < vbuffer.length; ++row)
-	    mvprintw(row, 0, "%s", toStringz(vbuffer[row]));
-	// The current player's map view, using as much of the rest of
-	// the terminal as will fit.
-	drawPlayerMapNcurses();
-	refresh();
+        // Since ncurses is not thread-safe, and the input thread uses ncurses
+	// to read keypresses, we need to do this in a locked state.
+	synchronized (mutex)
+	{
+	    for (int row=0; row < vbuffer.length; ++row)
+	        mvprintw(row, 0, "%s", toStringz(vbuffer[row]));
+	    // The current player's map view, using as much of the rest of
+	    // the terminal as will fit.
+	    drawPlayerMapNcurses();
+	    refresh();
+	}
     }
     else
     {

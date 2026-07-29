@@ -27,6 +27,8 @@
 
 module termio;
 
+version (Posix) import text : mutex;
+
 version (UseNcurses)
 {
     import deimos.ncurses;
@@ -68,6 +70,11 @@ version (UseNcurses)
 
     int termGetKey()
     {
+        // Technically we should protect this with the same mutex as the other
+	// ncurses calls, since ncurses is not thread-safe.  But that would
+	// deadlock with the main thread trying to draw on screen.
+	//
+	// Luckily getc() is unlikely to have race conditions with drawing.
 	int c = getch();	// returns ERR (-1) if timeout expires
 	return c;		// -1 on timeout, or the character otherwise
     }
