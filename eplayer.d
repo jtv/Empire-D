@@ -719,6 +719,19 @@ struct Player
 		    }
 		    cmderror();
 		    break;
+	    case BS:			// backspace: destroy unit immediately
+	    case DEL:			// (most terminals send DEL, not BS,
+					// for the physical Backspace key)
+
+	    if (p.mode != mdMOVE)
+	        goto cmderr;
+
+	    // Destroy the current unit.
+	    updlst(u.loc, u.typ);
+	    kill(u);
+	    p.setmode(mdNONE);
+	    t.speaker_click();
+	    return 1;			// move completed (unit destroyed)
 	    case 'F':			// from
 		    p.cmdF(u); break;
 	    case 'G':			// goto nearest city/carrier

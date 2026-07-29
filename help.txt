@@ -306,6 +306,8 @@ MOVE MODE
     >     Increase delay time by 1/4 second. Use if the messages 
           flash by too fast.
 
+Also, use the _"backspace"_ key to destroy the current unit.
+
 
 SURVEY MODE
 
