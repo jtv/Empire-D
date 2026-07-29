@@ -219,6 +219,9 @@ struct Player
 	    e = p.evalu8(u,r2);
       } while (e);
 
+      if (u.loc && u.own == p.num)
+          p.display.headng(u);		// Update heading, e.g. fuel left.
+
       p.turns = 0;				// reset
       return 1;				// done with this piece
     }
