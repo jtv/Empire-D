@@ -721,19 +721,22 @@ struct Player
 		    break;
 	    case BS:	// Backspace: destroy unit immediately.  Most terminals
 	    case DEL:	// DEL, not BS, for the physical Backspace key.
-		if (p.mode != mdMOVE && p.mode != mdSURV)
-		    goto cmderr;
 		Unit *victim = null;
-		if (p.mode == mdMOVE)
+		switch (p.mode)
 		{
+		case mdMOVE:
 		    victim = u;
-		}
-		else
-		{
+		    break;
+		case mdSURV:
 		    victim = fnduni(p.curloc);
-		    if ((victim == null) || !p.valid(victim))
-		        goto cmderr;
+		    if (!p.valid(victim))
+		        victim = null;
+		    break;
+		default:
+		    break;
 		}
+		if (victim == null)
+		    goto cmderr;
 
 		// Keep copy of location, since killing a unit clears its loc.
 		loc_t vic_loc = victim.loc;
@@ -749,6 +752,7 @@ struct Player
 		{
 		    // *Or* p.sensor(victim.loc)
 		    eomove(vic_loc);
+		    // Stay in Survey mode.
 		    goto cmdscn;
 		}
 		t.speaker_click();

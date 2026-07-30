@@ -237,9 +237,8 @@ int updmap(loc_t loc)
 
 Unit *fnduni(loc_t loc)
 { int ab,n;
-  ab = .map[loc];
-
   chkloc(loc);
+  ab = .map[loc];
   assert(.typ[ab] >= 0);
 
   n = unitop;				/* max unit # + 1		*/
