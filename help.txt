@@ -343,6 +343,9 @@ SURVEY MODE
 
     esc   Return to MOVE mode.
 
+Use the _"backspace"_ key to destroy the unit under the cursor.
+
+
 DIR MODE
 
     This mode expects a direction key to be pressed. This will 
