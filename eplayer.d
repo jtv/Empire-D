@@ -728,9 +728,12 @@ struct Player
 		    victim = u;
 		    break;
 		case mdSURV:
-		    victim = fnduni(p.curloc);
-		    if (!p.valid(victim))
-		        victim = null;
+		    if ((typ[.map[p.curloc]]) >= 0)
+		    {
+		        victim = fnduni(p.curloc);
+		        if (!p.valid(victim))
+		            victim = null;
+		    }
 		    break;
 		default:
 		    break;
