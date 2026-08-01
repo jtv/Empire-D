@@ -298,6 +298,21 @@ struct Player
 		return false;		// all done
 	    }
 	    ac = updmap(loc);		// fix up map
+
+	    /*
+	     * We won the fight, but we shouldn't assume that also means
+	     * we want to move onto the loser's square: an army sinking a
+	     * ship can't occupy open water, and a ship destroying a unit
+	     * on land can't come ashore. Carry out the attack, but leave
+	     * the attacker where it started.
+	     */
+
+	    if ((type == A && ac == MAPsea) ||
+		(type >= D && ac != MAPsea))
+	    {   eomove(u.loc);		// sensor probe of loc we attacked
+		u.loc = locold;		// stay put, don't move in
+		return false;		// all done
+	    }
       }
 
      /*

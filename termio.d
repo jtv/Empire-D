@@ -36,13 +36,20 @@ version (UseNcurses)
         COLOR_BLUE, COLOR_BLACK, COLOR_GREEN, COLOR_RED, COLOR_YELLOW,
         COLOR_MAGENTA, COLOR_CYAN, COLOR_WHITE;
     import std.string : toStringz;
+    import core.sys.posix.sys.select : select, fd_set, FD_ZERO, FD_SET, timeval;
+    import core.sys.posix.unistd : STDIN_FILENO;
 
     void termInit()
     {
 	initscr();
 	cbreak();		// no line buffering
 	noecho();		// don't echo typed characters
-	timeout(500);		// wait at most 500ms (0.5 seconds) for input
+
+	// getch() itself never blocks (returns ERR immediately if nothing's
+	// waiting) -- termGetKey() below does its own waiting, via select()
+	// on the raw fd, *before* it ever touches ncurses. That keeps the
+	// actual wait outside the mutex-protected critical section.
+	nodelay(stdscr, true);
 
 	// Initialize colour pairs for map display if the terminal supports colours
 	if (has_colors())
@@ -70,13 +77,41 @@ version (UseNcurses)
 
     int termGetKey()
     {
-        // Technically we should protect this with the same mutex as the other
-	// ncurses calls, since ncurses is not thread-safe.  But that would
-	// deadlock with the main thread trying to draw on screen.
+	// getch() isn't just a read: if the screen has been touched since
+	// the last refresh, it implicitly calls wrefresh() before waiting
+	// for a key. That means it can mutate the very ncurses state
+	// win_flush() is writing to -- so it does need the same mutex as
+	// the other ncurses calls, not just termGetKey()-as-a-whole but
+	// specifically the moment it touches ncurses.
 	//
-	// Luckily getc() is unlikely to have race conditions with drawing.
-	int c = getch();	// returns ERR (-1) if timeout expires
-	return c;		// -1 on timeout, or the character otherwise
+	// What it must NOT do is hold that mutex while it blocks waiting
+	// for a keystroke. Holding the lock across a (potentially
+	// half-second) wait would mean re-acquiring it again almost
+	// immediately after releasing it, on every loop iteration --
+	// starving the main thread of any real chance to grab the lock
+	// for win_flush(). So the wait happens here first, against the
+	// raw file descriptor, without touching ncurses (and therefore
+	// without needing the mutex) at all.
+	fd_set readfds;
+	FD_ZERO(&readfds);
+	FD_SET(STDIN_FILENO, &readfds);
+
+	timeval tv;
+	tv.tv_sec = 0;
+	tv.tv_usec = 500_000;	// 500ms, same timeout termGetKey() always had
+
+	int ready = select(STDIN_FILENO + 1, &readfds, null, null, &tv);
+	if (ready <= 0)
+	    return -1;		// timeout, or an interrupted/failed call
+
+	// A byte is already waiting at the OS level, so this getch() call
+	// -- and any implicit refresh it triggers -- returns essentially
+	// immediately. That's the only ncurses call this function makes,
+	// and the only place it needs the lock.
+	synchronized (mutex)
+	{
+	    return getch();	// ERR (-1) only if select() was mistaken
+	}
     }
 
     /*
