@@ -518,7 +518,7 @@ version(none)
 		    global.speaker ^= 1;
 		    return 0;
 
-		case 12:
+		case '\f': // Form feed (ASCII 12).
 		    InvalidateRect(hwnd, null, true);
 		    break;
 
