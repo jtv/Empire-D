@@ -36,6 +36,27 @@ configuration "gui-windows" {
     copyFiles "*.wav" "help.txt"
 }
 
+// --- SDL2 GUI build (Linux and similar POSIX systems) ---
+// No SDL2 frontend exists yet -- sdlmain.d is a placeholder in the same
+// spirit as textmain.d below: it proves the "gui-sdl2" configuration
+// actually links and runs against SDL2, but the real game UI (map
+// rendering, sprites, sound, input) is still to be written.
+//
+// bindbc-sdl's dynamic-binding config (the default) dlopens libSDL2 at
+// runtime rather than link against it, so no "libs" entry is needed
+// here -- just a working libSDL2 install on the target system.
+configuration "gui-sdl2" {
+    platforms "posix"
+
+    dependency "bindbc-sdl" version="~>1.4.2"
+
+    sourceFiles "sdlmain.d"
+
+    // Same on-disk assets the Windows build uses (bitmaps, sounds, help
+    // text) -- unused until the real frontend loads them.
+    copyFiles "*.bmp" "*.wav" "help.txt"
+}
+
 // --- Text builds (POSIX only for now: both backends below need it) ---
 // No frontend exists yet -- textmain.d is a placeholder just to prove
 // the engine itself compiles and links outside Windows. The real text
