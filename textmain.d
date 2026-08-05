@@ -160,6 +160,47 @@ extern (C) void win_flush()
 }
 
 /*
+ * Build the ruler line shown along the bottom row of the map display:
+ * every visible map column (map x-coordinate c0+i, for column i within
+ * the viewport) that's divisible by 5 gets a caret immediately followed
+ * by that column's x-coordinate; everything else is left blank. Once a
+ * marker is placed, scanning resumes right after its digits, so markers
+ * never overlap even when consecutive multiples of 5 are close enough
+ * together that their labels would otherwise collide.
+ *
+ * The returned string is exactly `cols` characters long. A marker that
+ * would run past the right edge is simply truncated at that edge.
+ */
+string rulerLine(int c0, int cols)
+{
+    char[] line = new char[cols];
+    line[] = ' ';
+
+    int i = 0;
+    while (i < cols)
+    {
+	int x = c0 + i;
+	if (x % 5 == 0)
+	{
+	    string numStr = to!string(x);
+	    line[i] = '^';
+	    int j = 1;
+	    foreach (ch; numStr)
+	    {
+		if (i + j >= cols)
+		    break;
+		line[i + j] = ch;
+		j++;
+	    }
+	    i += 1 + cast(int) numStr.length;
+	}
+	else
+	    i++;
+    }
+    return line.idup;
+}
+
+/*
  * Render the human player's known map using ncurses, underneath the vbuffer
  * text area, sized to use as much of the terminal as remains below it.
  *
@@ -206,8 +247,13 @@ void drawPlayerMapNcurses()
     bool moving = (human.mode == mdMOVE && human.usv !is null);
     int movingLoc = moving ? human.usv.loc : -1;
 
+    // The bottom row of the viewport is a ruler, not terrain, as long as
+    // there's room for at least one terrain row above it.
+    bool showRuler = mapRows >= 2;
+    int terrainRows = showRuler ? mapRows - 1 : mapRows;
+
     int screenRow = cast(int) vbuffer.length;
-    for (int r = 0; r < mapRows; r++)
+    for (int r = 0; r < terrainRows; r++)
     {
 	for (int c = 0; c < mapCols; c++)
 	{
@@ -285,6 +331,9 @@ void drawPlayerMapNcurses()
 	}
 	screenRow++;
     }
+
+    if (showRuler)
+	mvprintw(screenRow, 0, "%s", toStringz(rulerLine(c0, mapCols)));
 }
 
 /*
@@ -353,8 +402,13 @@ void drawPlayerMap()
     bool moving = (human.mode == mdMOVE && human.usv !is null);
     int movingLoc = moving ? human.usv.loc : -1;
 
+    // The bottom row of the viewport is a ruler, not terrain, as long as
+    // there's room for at least one terrain row above it.
+    bool showRuler = mapRows >= 2;
+    int terrainRows = showRuler ? mapRows - 1 : mapRows;
+
     char[] line;
-    for (int r = 0; r < mapRows; r++)
+    for (int r = 0; r < terrainRows; r++)
     {
 	line.length = 0;
 	for (int c = 0; c < mapCols; c++)
@@ -434,6 +488,9 @@ void drawPlayerMap()
 	}
 	writeln(line);
     }
+
+    if (showRuler)
+	writeln(rulerLine(c0, mapCols));
 }
 
 extern (C) void sound_click()
