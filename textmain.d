@@ -160,35 +160,48 @@ extern (C) void win_flush()
 }
 
 /*
- * Build the ruler line shown along the bottom row of the map display:
- * every visible map column (map x-coordinate c0+i, for column i within
- * the viewport) that's divisible by 5 gets a caret immediately followed
- * by that column's x-coordinate; everything else is left blank. Once a
- * marker is placed, scanning resumes right after its digits, so markers
- * never overlap even when consecutive multiples of 5 are close enough
- * together that their labels would otherwise collide.
+ * Ruler line shown along the bottom row of the map display: every map
+ * column (map x-coordinate 0..Mcolmx) that's divisible by 5 gets a
+ * caret immediately followed by that column's x-coordinate; everything
+ * else is blank. Once a marker is placed, scanning resumes right after
+ * its digits, so markers never overlap even when consecutive multiples
+ * of 5 are close enough together that their labels would otherwise
+ * collide.
  *
- * The returned string is exactly `cols` characters long. A marker that
- * would run past the right edge is simply truncated at that edge.
+ * Mcolmx is fixed for the whole run, so this is the same string every
+ * time -- built once, at startup, into fullRulerLine below, instead of
+ * being reconstructed on every redraw. rulerLine() just slices it.
+ *
+ * One behavioural difference from the old per-call version: this is
+ * now a single tape addressed by absolute map column, not something
+ * that restarts its scan at each viewport's left edge. If a viewport's
+ * left edge (c0) falls in the middle of a multi-digit label -- e.g.
+ * c0 == 6, right after "^5" occupies columns 5-6 -- the slice now
+ * starts with that label's leftover digit(s) and no caret, whereas the
+ * old code (which always started counting from c0) would have shown
+ * blank there instead. A marker running past the right edge is still
+ * truncated there, same as before.
  */
-string rulerLine(int c0, int cols)
+private immutable string fullRulerLine;
+
+private string buildFullRulerLine()
 {
-    char[] line = new char[cols];
+    // A little headroom past Mcolmx: a label for a marker near the
+    // map's right edge can run past column Mcolmx itself, even though
+    // no slice ever reaches that far (c0 + cols is always <= Mcolmx+1).
+    char[] line = new char[Mcolmx + 1 + 8];
     line[] = ' ';
 
     int i = 0;
-    while (i < cols)
+    while (i <= Mcolmx)
     {
-	int x = c0 + i;
-	if (x % 5 == 0)
+	if (i % 5 == 0)
 	{
-	    string numStr = to!string(x);
+	    string numStr = to!string(i);
 	    line[i] = '^';
 	    int j = 1;
 	    foreach (ch; numStr)
 	    {
-		if (i + j >= cols)
-		    break;
 		line[i + j] = ch;
 		j++;
 	    }
@@ -198,6 +211,16 @@ string rulerLine(int c0, int cols)
 	    i++;
     }
     return line.idup;
+}
+
+shared static this()
+{
+    fullRulerLine = buildFullRulerLine();
+}
+
+string rulerLine(int c0, int cols)
+{
+    return fullRulerLine[c0 .. c0 + cols];
 }
 
 /*
