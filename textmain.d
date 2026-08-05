@@ -41,6 +41,7 @@ import core.stdc.time : time;
 import core.thread : Thread;
 import core.time : MonoTime, msecs;
 import std.conv : to;
+import std.format : sformat;
 import std.getopt : getopt, defaultGetoptPrinter;
 import std.stdio : writeln, stdout, write, stderr;
 import std.string : toStringz;
@@ -162,11 +163,10 @@ extern (C) void win_flush()
 /*
  * Ruler line shown along the bottom row of the map display: every map
  * column (map x-coordinate 0..Mcolmx) that's divisible by 5 gets a
- * caret immediately followed by that column's x-coordinate; everything
- * else is blank. Once a marker is placed, scanning resumes right after
- * its digits, so markers never overlap even when consecutive multiples
- * of 5 are close enough together that their labels would otherwise
- * collide.
+ * caret immediately followed by that column's x-coordinate, zero-padded
+ * to RULER_DIGITS digits (so "^05" rather than "^5", lining up with the
+ * two-digit labels); everything else is blank. Labels are a fixed width
+ * (RULER_LABELWIDTH), so they never overlap.
  *
  * Mcolmx is fixed for the whole run, so this is the same string every
  * time -- built once, at startup, into fullRulerLine below, instead of
@@ -175,21 +175,24 @@ extern (C) void win_flush()
  * One behavioural difference from the old per-call version: this is
  * now a single tape addressed by absolute map column, not something
  * that restarts its scan at each viewport's left edge. If a viewport's
- * left edge (c0) falls in the middle of a multi-digit label -- e.g.
- * c0 == 6, right after "^5" occupies columns 5-6 -- the slice now
- * starts with that label's leftover digit(s) and no caret, whereas the
- * old code (which always started counting from c0) would have shown
- * blank there instead. A marker running past the right edge is still
- * truncated there, same as before.
+ * left edge (c0) falls in the middle of a label -- e.g. c0 == 6, right
+ * after "^05" occupies columns 5-7 -- the slice now starts with that
+ * label's leftover digit(s) and no caret, whereas the old code (which
+ * always started counting from c0) would have shown blank there
+ * instead. A marker running past the right edge is still truncated
+ * there, same as before.
  */
+private enum int RULER_DIGITS = cast(int) to!string(Mcolmx).length;
+private enum int RULER_LABELWIDTH = 1 + RULER_DIGITS;	// '^' + digits
+
 private immutable string fullRulerLine;
 
 private string buildFullRulerLine()
 {
-    // A little headroom past Mcolmx: a label for a marker near the
-    // map's right edge can run past column Mcolmx itself, even though
-    // no slice ever reaches that far (c0 + cols is always <= Mcolmx+1).
-    char[] line = new char[Mcolmx + 1 + 8];
+    // Headroom past Mcolmx for a label whose digits would otherwise
+    // run past it, even though no slice ever reaches that far (c0 +
+    // cols is always <= Mcolmx+1).
+    char[] line = new char[Mcolmx + 1 + RULER_LABELWIDTH];
     line[] = ' ';
 
     int i = 0;
@@ -197,15 +200,8 @@ private string buildFullRulerLine()
     {
 	if (i % 5 == 0)
 	{
-	    string numStr = to!string(i);
-	    line[i] = '^';
-	    int j = 1;
-	    foreach (ch; numStr)
-	    {
-		line[i + j] = ch;
-		j++;
-	    }
-	    i += 1 + cast(int) numStr.length;
+	    sformat(line[i .. i + RULER_LABELWIDTH], "^%0*d", RULER_DIGITS, i);
+	    i += RULER_LABELWIDTH;
 	}
 	else
 	    i++;
