@@ -1,2 +1,5 @@
 .*.swp
+dub.selections.json
 empire
+empire.dat
+.empire.log
