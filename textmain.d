@@ -212,11 +212,55 @@ private string buildFullRulerLine()
 shared static this()
 {
     fullRulerLine = buildFullRulerLine();
+    rowRulerLabels = buildRowRulerLabels();
 }
 
 string rulerLine(int c0, int cols)
 {
     return fullRulerLine[c0 .. c0 + cols];
+}
+
+/*
+ * Vertical ruler shown along the left edge of the map display, in
+ * place of its two leftmost columns: every map row (map y-coordinate
+ * 0..Mrowmx) that's divisible by 5 gets its row number, zero-padded
+ * to ROW_RULER_WIDTH digits (so "05" rather than "5"); every other
+ * row is blank there instead. There's no room for a caret here the
+ * way the column ruler has one -- two columns is only enough for the
+ * digits themselves.
+ *
+ * As with fullRulerLine above, Mrowmx is fixed for the whole run, so
+ * this is the same set of labels every time -- built once, at
+ * startup, into rowRulerLabels, indexed by absolute map row.
+ */
+private enum int ROW_RULER_DIGITS = cast(int) to!string(Mrowmx).length;
+private enum int ROW_RULER_WIDTH = ROW_RULER_DIGITS;
+
+private immutable string[] rowRulerLabels;
+
+private immutable(string)[] buildRowRulerLabels()
+{
+    char[] blank = new char[ROW_RULER_WIDTH];
+    blank[] = ' ';
+
+    string[] labels = new string[Mrowmx + 1];
+    foreach (row; 0 .. Mrowmx + 1)
+    {
+	if (row % 5 == 0)
+	{
+	    char[] label = new char[ROW_RULER_WIDTH];
+	    sformat(label, "%0*d", ROW_RULER_DIGITS, row);
+	    labels[row] = label.idup;
+	}
+	else
+	    labels[row] = blank.idup;
+    }
+    return labels.idup;
+}
+
+string rowRulerLabel(int row)
+{
+    return rowRulerLabels[row];
 }
 
 /*
@@ -271,10 +315,20 @@ void drawPlayerMapNcurses()
     bool showRuler = mapRows >= 2;
     int terrainRows = showRuler ? mapRows - 1 : mapRows;
 
+    // The vertical ruler takes over the left ROW_RULER_WIDTH screen
+    // columns from the terrain, same as showRuler does with the
+    // bottom screen row -- as long as there's at least one terrain
+    // column left over once it does.
+    int rowRulerWidth = (mapCols > ROW_RULER_WIDTH) ? ROW_RULER_WIDTH : 0;
+    int terrainCols = mapCols - rowRulerWidth;
+
     int screenRow = cast(int) vbuffer.length;
     for (int r = 0; r < terrainRows; r++)
     {
-	for (int c = 0; c < mapCols; c++)
+	if (rowRulerWidth)
+	    mvprintw(screenRow, 0, "%s", toStringz(rowRulerLabel(r0 + r)));
+
+	for (int c = 0; c < terrainCols; c++)
 	{
 	    int loc = (r0 + r) * (Mcolmx + 1) + (c0 + c);
 	    char ch;
@@ -304,7 +358,7 @@ void drawPlayerMapNcurses()
 		}
 		if (colourPair)
 		    color_set(cast(short) colourPair, null);
-		mvaddch(screenRow, c, ch);
+		mvaddch(screenRow, c + rowRulerWidth, ch);
 		if (moving && loc == movingLoc && blinkOn)
 		    attroff(A_REVERSE);
 		if (colourPair)
@@ -342,7 +396,7 @@ void drawPlayerMapNcurses()
 		color_set(cast(short) colourPair, null);
 	    if (atCursor)
 		attron(A_REVERSE);
-	    mvaddch(screenRow, c, ch);
+	    mvaddch(screenRow, c + rowRulerWidth, ch);
 	    if (atCursor)
 		attroff(A_REVERSE);
 	    if (colourPair)
@@ -352,7 +406,8 @@ void drawPlayerMapNcurses()
     }
 
     if (showRuler)
-	mvprintw(screenRow, 0, "%s", toStringz(rulerLine(c0, mapCols)));
+	mvprintw(screenRow, rowRulerWidth, "%s",
+	    toStringz(rulerLine(c0, terrainCols)));
 }
 
 /*
@@ -426,11 +481,20 @@ void drawPlayerMap()
     bool showRuler = mapRows >= 2;
     int terrainRows = showRuler ? mapRows - 1 : mapRows;
 
+    // The vertical ruler takes over the left ROW_RULER_WIDTH columns
+    // from the terrain, same as showRuler does with the bottom row --
+    // as long as there's at least one terrain column left over once
+    // it does.
+    int rowRulerWidth = (mapCols > ROW_RULER_WIDTH) ? ROW_RULER_WIDTH : 0;
+    int terrainCols = mapCols - rowRulerWidth;
+
     char[] line;
     for (int r = 0; r < terrainRows; r++)
     {
 	line.length = 0;
-	for (int c = 0; c < mapCols; c++)
+	if (rowRulerWidth)
+	    line ~= rowRulerLabel(r0 + r);
+	for (int c = 0; c < terrainCols; c++)
 	{
 	    int loc = (r0 + r) * (Mcolmx + 1) + (c0 + c);
 
@@ -509,7 +573,11 @@ void drawPlayerMap()
     }
 
     if (showRuler)
-	writeln(rulerLine(c0, mapCols));
+    {
+	char[] blank = new char[rowRulerWidth];
+	blank[] = ' ';
+	writeln(blank ~ rulerLine(c0, terrainCols));
+    }
 }
 
 extern (C) void sound_click()
