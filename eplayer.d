@@ -707,6 +707,12 @@ struct Player
 	    if (p.mode == mdTO)		// if in TO mode
 	    {   if (dist(p.curloc,p.frmloc) > p.maxrng)
 		{   p.curloc = oldloc;
+		    // cmdcur() may already have scrolled the sector to
+		    // follow the rejected target, leaving oldloc outside
+		    // it -- re-center if so, or pcur() below will hand
+		    // Text.curs() an out-of-range row/col and assert.
+		    if (!d.insect(p.curloc,2))
+			center(p.curloc);
 		    goto cmderr;		// too far away
 		}
 	    }
