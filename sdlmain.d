@@ -57,11 +57,14 @@ int main()
     {
         while (SDL_WaitEvent(&event) != 0)
         {
-            if (event.type == SDL_QUIT)
-            {
-                quit = true;
-                break;
-            }
+	    quit = quit || (
+	        (event.type == SDL_QUIT) ||
+		(event.type == SDL_KEYDOWN &&
+	             event.key.keysym.sym == SDLK_q &&
+		     (event.key.keysym.mod & KMOD_CTRL) != 0)
+	    );
+	    if (quit)
+		break;
         }
     }
 
