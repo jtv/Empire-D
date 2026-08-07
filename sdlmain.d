@@ -55,17 +55,16 @@ int main()
     SDL_Event event;
     while (!quit)
     {
-        while (SDL_WaitEvent(&event) != 0)
+        if (SDL_WaitEvent(&event) == 0)
         {
-	    quit = quit || (
-	        (event.type == SDL_QUIT) ||
-		(event.type == SDL_KEYDOWN &&
-	             event.key.keysym.sym == SDLK_q &&
-		     (event.key.keysym.mod & KMOD_CTRL) != 0)
-	    );
-	    if (quit)
-		break;
+            stderr.writefln("SDL_WaitEvent failed: %s", SDL_GetError());
+            return 1;
         }
+
+        quit = (event.type == SDL_QUIT) ||
+            (event.type == SDL_KEYDOWN &&
+                event.key.keysym.sym == SDLK_q &&
+                (event.key.keysym.mod & KMOD_CTRL) != 0);
     }
 
     return 0;
