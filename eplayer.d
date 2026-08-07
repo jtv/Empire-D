@@ -1560,17 +1560,16 @@ struct Player
 	if (!d.insect(loc,2))		// if not in current sector
 	    center(loc);			// center sector about city
 	typcit(p,c);				// type out data on city
+	d.pcur(loc);				// position cursor
+	t.flush();
 	version (Windows)
 	{
-	    d.pcur(loc);				// position cursor
-	    t.flush();
 	    i = dialogCitySelect(c.phs);
 	    ab = typx[i].unichr;
 	}
 	else
 	{
 	    d.cityProdDemands();
-	    d.pcur(loc);				// position cursor
 	    // Wait for input (which TTin() inserts via TTunget()).
 	    i = -1;
             do
@@ -1588,9 +1587,9 @@ struct Player
 		}
 	    }
 	    while (i < 0);
-	    t.curs(t.DS(0) + 25);		// where we want the prod to beg
-	    t.output(cast(char)(ab & 0xff));			// echo
 	}
+	t.curs(t.DS(0) + 25);		// where we want the prod to beg
+	t.output(cast(char)(ab & 0xff));			// echo
 	c.phs = cast(byte) (i & 0xff);				// set city phase
 	c.fnd = p.round + typx[i].phstart;
 	typcit(p,c);

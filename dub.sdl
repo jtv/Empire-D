@@ -47,7 +47,7 @@ configuration "gui-windows" {
 // here -- just a working libSDL2 install on the target system.
 configuration "gui-sdl2" {
     platforms "posix"
-
+    versions "SDL2"
     dependency "bindbc-sdl" version="~>1.4.2"
 
     sourceFiles "sdlmain.d"
