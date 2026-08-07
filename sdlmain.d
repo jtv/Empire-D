@@ -24,8 +24,11 @@
  *     way winmain.d's WM_CHAR handler does. Arrow/function keys and
  *     text-input-with-modifiers (SDL_TEXTINPUT) aren't mapped to
  *     anything.
- *   - No mouse handling, no window-resize handling (c.f. textmain.d's
- *     termResized()/setdispsize() dance).
+ *   - No mouse handling. The window is resizable and SDL_WINDOWEVENT
+ *     is handled well enough to keep it repainted while dragging, but
+ *     there's no equivalent yet of textmain.d's termResized()/
+ *     setdispsize() dance -- win_flush() has no map/message content to
+ *     re-lay-out at the new size anyway (see above).
  *
  * The *.bmp tiles and *.wav sounds this configuration already copies
  * next to the executable are still unused until the above is written.
@@ -162,7 +165,7 @@ int main()
 
     SDL_Window* window = SDL_CreateWindow("Empire (SDL2)",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        640, 480, SDL_WINDOW_SHOWN);
+        640, 480, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
     if (window is null)
     {
         stderr.writefln("SDL_CreateWindow failed: %s", SDL_GetError());
@@ -233,6 +236,18 @@ int main()
                 // this range check relies on.
                 if (sym >= 0 && sym < 128 && human.display)
                     human.display.text.TTunget(cast(int) sym);
+            }
+
+            // While the user is dragging an edge, SDL delivers a
+            // steady stream of these instead of running the main loop,
+            // so repaint right here -- otherwise the window shows
+            // stale (or garbage) content until the drag ends. The
+            // renderer's target already tracks the window's pixel
+            // size on its own; win_flush() just needs to be called.
+            if (event.type == SDL_WINDOWEVENT &&
+                event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+            {
+                win_flush();
             }
         }
 
