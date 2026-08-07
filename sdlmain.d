@@ -38,12 +38,13 @@ import std.stdio : stderr, writeln, writefln;
 
 import core.stdc.time : time;
 
-import empire : DAtty, MTterm, setran;
+import empire : DAtty, MTterm, setran, TYPMAX;
 import init : gameSetup;
 import move : slice;
 import eplayer : Player;
 import display : Display;
 import text : VBUFROWS, VBUFCOLS;
+import var : typx;
 
 // Hard-wired for now: 1 human player + 1 computer player. Same as
 // textmain.d -- see that file's module comment for why this should
@@ -51,9 +52,11 @@ import text : VBUFROWS, VBUFCOLS;
 // instead.
 enum int NUMPLY = 2;
 
-// Set once in main() before the game engine can call win_flush(); read
-// only from the main thread, same one that set it.
+// Set once in main() before the game engine can call win_flush() or
+// dialogCitySelectSDL(); read only from the main thread, same one
+// that set them.
 private __gshared SDL_Renderer* renderer;
+private __gshared SDL_Window* mainWindow;
 
 /*
  * text.d calls these two hooks (declared extern(C) there, with no
@@ -75,6 +78,59 @@ extern (C) void sound_click()
 {
     // TODO: play click.wav -- needs an SDL audio device set up first.
 }
+
+/********************************
+ * Dialog box to get a city's production phase.
+ *
+ * Mirrors winmain.d's dialogCitySelect(): eplayer.d's phasin() polls
+ * TTin() for a keypress when there's no dialog to delegate to, but
+ * TTin() only ever sees input that's been fed in via TTunget(), and
+ * that only happens from this module's main-loop keydown handling --
+ * which can't run while phasin() itself is blocking the same (single)
+ * thread. SDL_ShowMessageBox() sidesteps that the same way Windows'
+ * modal DialogBoxParamA() does: it pumps its own event loop for as
+ * long as it's on screen, so it doesn't depend on sdlmain.d's main
+ * loop at all -- including during game setup, before that loop has
+ * even started.
+ *
+ * Input:
+ *	oldphase = city's previous production phase (0..TYPMAX-1), or
+ *	           an out-of-range value for a new city.
+ * Returns:
+ *	Index into var.d's typx[] for the chosen production type.
+ */
+
+int dialogCitySelectSDL(int oldphase)
+{
+    if (oldphase < 0 || oldphase >= TYPMAX)
+        oldphase = 0;		// default to Army, same as winmain.d
+
+    SDL_MessageBoxButtonData[TYPMAX] buttons;
+    foreach (i, ref b; buttons)
+    {
+        b.buttonid = cast(int) i;
+        b.text = typx[i].name;
+        if (cast(int) i == oldphase)
+            b.flags = SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT;
+    }
+
+    SDL_MessageBoxData data;
+    data.flags = SDL_MESSAGEBOX_INFORMATION;
+    data.window = mainWindow;
+    data.title = "City production";
+    data.message = "Select what this city should produce.";
+    data.numbuttons = TYPMAX;
+    data.buttons = buttons.ptr;
+
+    int buttonid = oldphase;
+    if (SDL_ShowMessageBox(&data, &buttonid) != 0)
+    {
+        stderr.writefln("SDL_ShowMessageBox failed: %s", SDL_GetError());
+        return oldphase;	// best effort: keep the previous phase
+    }
+    return buttonid;
+}
+
 
 /***********************
  * Return the human player, if any.
@@ -114,6 +170,8 @@ int main()
     }
     scope (exit)
         SDL_DestroyWindow(window);
+
+    mainWindow = window;
 
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     if (renderer is null)

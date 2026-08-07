@@ -29,6 +29,10 @@ version (Windows)
 {
 import winmain : global;
 }
+else version (SDL2)
+{
+import sdlmain : dialogCitySelectSDL;
+}
 
 import feedback : invalidateSector;
 
@@ -1565,6 +1569,18 @@ struct Player
 	version (Windows)
 	{
 	    i = dialogCitySelect(c.phs);
+	    ab = typx[i].unichr;
+	}
+	else version (SDL2)
+	{
+	    // As on Windows, hand the prompt to a modal dialog instead of
+	    // polling TTin(): SDL_ShowMessageBox() (called from
+	    // dialogCitySelectSDL()) runs its own event loop while it's
+	    // up, so -- unlike the TTin() loop below -- it doesn't depend
+	    // on sdlmain.d's main loop to pump events and feed a keypress
+	    // in via TTunget(). That main loop isn't even running yet
+	    // during game setup, which is why that loop hung.
+	    i = dialogCitySelectSDL(c.phs);
 	    ab = typx[i].unichr;
 	}
 	else
