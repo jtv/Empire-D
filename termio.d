@@ -37,6 +37,7 @@ version (UseNcurses)
         COLOR_MAGENTA, COLOR_CYAN, COLOR_WHITE;
     import std.string : toStringz;
     import core.sys.posix.sys.select : select, fd_set, FD_ZERO, FD_SET, timeval;
+    import core.sys.posix.termios : tcgetattr, tcsetattr, termios, TCSANOW, IXON, IXOFF;
     import core.sys.posix.unistd : STDIN_FILENO;
 
     void termInit()
@@ -44,6 +45,14 @@ version (UseNcurses)
 	initscr();
 	cbreak();		// no line buffering
 	noecho();		// don't echo typed characters
+
+	// cbreak() leaves software flow control (^Q/^S) enabled, so
+	// those bytes never reach getch() -- disable it directly via
+	// termios, same as the raw-termios backend below.
+	termios t;
+	tcgetattr(STDIN_FILENO, &t);
+	t.c_iflag &= ~(IXON | IXOFF);
+	tcsetattr(STDIN_FILENO, TCSANOW, &t);
 
 	// getch() itself never blocks (returns ERR immediately if nothing's
 	// waiting) -- termGetKey() below does its own waiting, via select()
@@ -203,6 +212,7 @@ else version (Posix)
 	raw = origTermios;
 
 	raw.c_lflag &= ~(ICANON | ECHO);	// no line buffering, no echo
+	raw.c_iflag &= ~(IXON | IXOFF);	// don't eat ^Q/^S for flow control
 	raw.c_cc[VMIN] = 0;			// don't require any bytes for read to return
 	raw.c_cc[VTIME] = 5;			// timeout after 0.5 seconds (5 deciseconds)
 

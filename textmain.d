@@ -37,6 +37,7 @@ module textmain;
 import display : Display;
 
 import core.atomic : atomicLoad, atomicStore;
+import core.stdc.stdlib : exit;
 import core.stdc.time : time;
 import core.thread : Thread;
 import core.time : MonoTime, msecs;
@@ -597,6 +598,18 @@ void inputThreadFunc()
 	int c = termGetKey();		// blocking read, times out at 500ms
 	if (c != -1)
 	{
+	    // Ctrl-Q (ASCII DC1, 0x11) forces an immediate quit, the
+	    // same shortcut the SDL frontend honours. There's no
+	    // in-game "quit" command to route this through, so this
+	    // matches how the engine already terminates elsewhere
+	    // (e.g. chkwin()'s exit() calls in move.d): restore the
+	    // terminal and end the process directly.
+	    if (c == 0x11)
+	    {
+		termDone();
+		exit(0);
+	    }
+
 	    // Deliver the input to the human player, if there is one.
 	    // That's always player 1 (although in demo mode, even that is
 	    // not a human).
