@@ -11,10 +11,12 @@
  *
  * What's still missing:
  *   - win_flush() draws the vbuffer text area (via SDL_ttf) and, below
- *     it, the horizontal/vertical map rulers (see drawMapRulers()) --
- *     but not the map terrain itself.  There is no SDL_Renderer-based
- *     equivalent yet of textmain.d's drawPlayerMap() or winmain.d's
- *     map/sprite GDI blitting.
+ *     it, the map viewport itself -- terrain, units, cities, cursor
+ *     highlight, and the horizontal/vertical rulers (see drawMap()) --
+ *     an SDL_Renderer-based equivalent of textmain.d's
+ *     drawPlayerMapNcurses(), though not yet of winmain.d's tile/sprite
+ *     GDI blitting (this draws single characters, the same as the text
+ *     frontends, not the *.bmp tile art).
  *   - The vbuffer text only actually appears if a monospace TTF font
  *     was found at one of openMonoFont()'s hardcoded candidate paths.
  *     There's no bundled fallback font and no way to configure the
@@ -29,10 +31,12 @@
  *     text-input-with-modifiers (SDL_TEXTINPUT) aren't mapped to
  *     anything.
  *   - No mouse handling. The window is resizable and SDL_WINDOWEVENT
- *     is handled well enough to keep it repainted while dragging, but
- *     there's no equivalent yet of textmain.d's termResized()/
- *     setdispsize() dance -- win_flush() has no map/message content to
- *     re-lay-out at the new size anyway (see above).
+ *     is handled well enough to keep it repainted while dragging, and
+ *     to keep Display.setdispsize() in sync with the new size (see
+ *     computeDispSize()) -- but there's still no equivalent of
+ *     textmain.d's narrow-terminal (Text.narrow) formatting choices
+ *     reacting to a shrink, since that's driven by the vbuffer text
+ *     layout, which win_flush() draws at a fixed width regardless.
  *
  * The *.bmp tiles and *.wav sounds this configuration already copies
  * next to the executable are still unused until the above is written.
@@ -45,21 +49,32 @@ import std.stdio : stderr, writeln, writefln;
 import std.string : toStringz;
 
 import core.stdc.time : time;
+import core.time : MonoTime;
 
-import empire : DAtty, MTterm, setran, TYPMAX, Mrowmx, Mcolmx, ROW, COL;
+import empire : DAtty, MTterm, setran, TYPMAX, Mrowmx, Mcolmx, ROW, COL,
+    X, MAPunknown, MAPcity, MAPsea, MAPland, mdMOVE;
 import init : gameSetup;
 import move : slice;
 import eplayer : Player;
 import display : Display;
+import maps : revealUnderneath, RevealKind;
 import ruler : rulerLine, rowRulerLabel, ROW_RULER_WIDTH;
-import text : VBUFROWS, VBUFCOLS, vbuffer;
-import var : typx;
+import text : VBUFROWS, vbuffer;
+import var : typx, typ, own;
 
 // Hard-wired for now: 1 human player + 1 computer player. Same as
 // textmain.d -- see that file's module comment for why this should
 // eventually become a real player-count prompt or command-line option
 // instead.
 enum int NUMPLY = 2;
+
+// Fallback/minimum Display.setdispsize() row/col size -- see
+// computeDispSize()'s doc comment for why VBUFROWS/VBUFCOLS (used
+// here in an earlier version of this file) doesn't work. Same values
+// textmain.d hardcodes as its own starting point (DEFAULT_ROWS/
+// DEFAULT_COLS there), before a real terminal resize replaces them.
+enum int DEFAULT_ROWS = 24;
+enum int DEFAULT_COLS = 80;
 
 // Set once in main() before the game engine can call win_flush() or
 // dialogCitySelect(); read only from the main thread, same one
@@ -101,6 +116,75 @@ private TTF_Font* openMonoFont(int ptsize)
     return null;
 }
 
+/*
+ * Work out a row/col size for Display.setdispsize(), in character
+ * cells, from the window's current pixel size and the loaded font's
+ * metrics -- analogous to termSize() feeding textmain.d's
+ * setdispsize() calls with the real terminal size.
+ *
+ * This fixes a real bug: main() used to pass VBUFROWS/VBUFCOLS (5,80)
+ * straight through to gameSetup(), copying the pattern winmain.d uses
+ * for its own setdispsize() call (see init.d's gameSetup() doc
+ * comment). That's fine on Windows, where Display.pcur() has its own
+ * version(Windows) branch that never touches Text.curs()/Tmax at all
+ * -- but SDL2 isn't version(Windows), so pcur() falls into the same
+ * branch textmain.d uses, which does bounds-check against Tmax via
+ * Text.curs()'s assert. With only 5 rows (3 of them usable once
+ * setdispsize() reserves 2 for borders -- see its Smax calculation),
+ * moving the cursor almost anywhere on a 60-row map immediately blew
+ * that assert. A real, generously-sized row/col count avoids it, the
+ * same way textmain.d's DEFAULT_ROWS/DEFAULT_COLS (or a real terminal
+ * size once one's known) always have.
+ *
+ * Falls back to DEFAULT_ROWS/DEFAULT_COLS if the font (and therefore
+ * its metrics) isn't available, and never returns anything smaller
+ * than that floor even when the font is available, in case the window
+ * is very small -- setdispsize() already clamps the upper end itself
+ * (see its "Scale back if display is bigger than we can use" comment
+ * in display.d).
+ */
+private void computeDispSize(out int rows, out int cols)
+{
+    int charWidth, charHeight;
+    int lineSkip;
+    if (font is null || renderer is null ||
+        (lineSkip = TTF_FontLineSkip(font)) <= 0 ||
+        TTF_SizeUTF8(font, "0", &charWidth, &charHeight) != 0 ||
+        charWidth <= 0)
+    {
+        rows = DEFAULT_ROWS;
+        cols = DEFAULT_COLS;
+        return;
+    }
+
+    int pixelWidth, pixelHeight;
+    SDL_GetRendererOutputSize(renderer, &pixelWidth, &pixelHeight);
+
+    rows = pixelHeight / lineSkip;
+    cols = pixelWidth / charWidth;
+    if (rows < DEFAULT_ROWS) rows = DEFAULT_ROWS;
+    if (cols < DEFAULT_COLS) cols = DEFAULT_COLS;
+}
+
+// Map cell colours, chosen to match the RGB values the termios
+// frontend's ANSI escapes (textmain.d's drawPlayerMap()) resolve to on
+// a typical terminal -- bright red/yellow/magenta/cyan/white/green for
+// players 1..6, plain blue sea and green land, the same mapping
+// termio.d's ncurses colour pairs use (COLOR_RED, COLOR_BLUE, ...).
+private immutable SDL_Color COLOUR_BLACK = SDL_Color(0, 0, 0, 255);
+private immutable SDL_Color COLOUR_WHITE = SDL_Color(255, 255, 255, 255);
+private immutable SDL_Color COLOUR_SEA   = SDL_Color(0, 0, 170, 255);
+private immutable SDL_Color COLOUR_LAND  = SDL_Color(0, 170, 0, 255);
+private immutable SDL_Color[7] playerColour = [
+    COLOUR_WHITE,				// no player 0 (unused)
+    SDL_Color(255, 85, 85, 255),		// player 1: red
+    SDL_Color(255, 255, 85, 255),		// player 2: yellow
+    SDL_Color(255, 85, 255, 255),		// player 3: magenta
+    SDL_Color(85, 255, 255, 255),		// player 4: cyan
+    SDL_Color(255, 255, 255, 255),		// player 5: white
+    SDL_Color(85, 255, 85, 255),		// player 6: green
+];
+
 
 /*
  * Render one line of text (nul-terminated, as vbuffer[] rows and the
@@ -134,20 +218,63 @@ private void drawText(int x, int y, const(char)* str, SDL_Color color)
 }
 
 /*
- * Horizontal and vertical map rulers, drawn below the vbuffer text
- * area -- the SDL2 counterpart to textmain.d's drawPlayerMapNcurses()
- * use of rulerLine()/rowRulerLabel(), except there's no map terrain
- * to go with them yet (see the module comment above). The layout
- * mirrors that function exactly -- same viewport sizing, centred on
- * the cursor, same ROW_RULER_WIDTH-column/bottom-row placement -- so
- * the rulers will already line up correctly once terrain drawing
- * catches up to them.
- *
- * Unlike a character-cell terminal, the SDL window's size is in
- * pixels, so it's converted to a map-column/row viewport size using
- * the monospace font's fixed glyph width and TTF_FontLineSkip().
+ * Draw one map cell's glyph at the given screen position, in colour,
+ * with an optional reverse-video style highlight (used for the cursor
+ * cell) -- the SDL equivalent of the ncurses version's color_set()
+ * plus attron(A_REVERSE)/attroff(A_REVERSE) around mvaddch(). SDL has
+ * no terminal-style "reverse video" attribute, so it's faked here:
+ * fill the cell with its own colour, then draw the glyph over that in
+ * the background colour instead of drawing the glyph in its colour
+ * over the (already black) background.
  */
-private void drawMapRulers(int lineSkip, SDL_Color color)
+private void drawCell(int x, int y, int cellWidth, int cellHeight,
+    char ch, SDL_Color colour, bool highlighted)
+{
+    char[2] buf;
+    buf[0] = ch;
+    buf[1] = '\0';
+
+    if (highlighted)
+    {
+        SDL_Rect rect;
+        rect.x = x;
+        rect.y = y;
+        rect.w = cellWidth;
+        rect.h = cellHeight;
+        SDL_SetRenderDrawColor(renderer, colour.r, colour.g, colour.b, 255);
+        SDL_RenderFillRect(renderer, &rect);
+        drawText(x, y, buf.ptr, COLOUR_BLACK);
+    }
+    else
+        drawText(x, y, buf.ptr, colour);
+}
+
+/*
+ * Render the human player's known map, and its horizontal/vertical
+ * rulers, below the vbuffer text area -- the SDL2 counterpart to
+ * textmain.d's drawPlayerMapNcurses(). The viewport sizing, centring
+ * on the cursor, and ruler placement all mirror that function
+ * exactly; only the pixel-vs-character-cell bookkeeping and the
+ * colour representation (RGB SDL_Color instead of an ncurses colour
+ * pair) differ, since there's no character grid to work with here.
+ *
+ * Each map cell is shown as a single character -- var.d's typx[].unichr
+ * for units, 'O' for an owned city, '*' for an unowned one, '~' for
+ * sea, '+' for land, and a blank for still-unexplored territory. This
+ * only reflects what the player actually knows (human.map, the
+ * fog-of-war copy of the reference map), not the true state of the
+ * whole board.
+ *
+ * One difference from drawPlayerMapNcurses(): that function's "blink"
+ * for a unit in move mode is driven by textmain.d's main loop toggling
+ * a shared blinkOn flag on a wall-clock timer, forcing a redraw every
+ * 500ms even when nothing else changed. sdlmain.d's main loop has no
+ * such timer yet (TODO), so blinkOn here is instead derived directly
+ * from MonoTime on every call -- it'll show the right phase whenever a
+ * redraw does happen, but (unlike the ncurses version) won't animate
+ * on its own while the display is otherwise idle.
+ */
+private void drawMap(int lineSkip, SDL_Color textColour)
 {
     Player *human = getHuman();
     if (human is null || human.display is null)
@@ -192,16 +319,90 @@ private void drawMapRulers(int lineSkip, SDL_Color color)
 
     int mapTop = VBUFROWS * lineSkip;
 
+    // The unit being moved, if we're in move mode -- see drawCell()'s
+    // callers below and the blinkOn doc comment above.
+    bool moving = (human.mode == mdMOVE && human.usv !is null);
+    int movingLoc = moving ? human.usv.loc : -1;
+
+    long msecsElapsed = MonoTime.currTime.ticks * 1000 / MonoTime.ticksPerSecond;
+    bool blinkOn = (msecsElapsed / 500) % 2 == 0;
+
     if (rowRulerWidth)
     {
         foreach (r; 0 .. terrainRows)
             drawText(0, mapTop + r * lineSkip,
-                toStringz(rowRulerLabel(r0 + r)), color);
+                toStringz(rowRulerLabel(r0 + r)), textColour);
+    }
+
+    foreach (r; 0 .. terrainRows)
+    {
+        int y = mapTop + r * lineSkip;
+
+        foreach (c; 0 .. terrainCols)
+        {
+            int x = (rowRulerWidth + c) * charWidth;
+            int loc = (r0 + r) * (Mcolmx + 1) + (c0 + c);
+
+            // The moving unit's own cell blinks between its own
+            // highlighted image and revealUnderneath()'s answer for
+            // what's underneath it (a city, the ship it's aboard,
+            // etc. -- see maps.d), rather than following the normal
+            // rendering below.
+            if (moving && loc == movingLoc)
+            {
+                if (blinkOn)
+                    drawCell(x, y, charWidth, lineSkip,
+                        typx[human.usv.typ].unichr,
+                        playerColour[human.usv.own], true);
+                else
+                {
+                    char rch; int rowner;
+                    auto kind = revealUnderneath(human.usv, rch, rowner);
+                    SDL_Color rcolour = (kind == RevealKind.terrain)
+                        ? (rch == '~' ? COLOUR_SEA : COLOUR_LAND)
+                        : (rowner ? playerColour[rowner] : textColour);
+                    drawCell(x, y, charWidth, lineSkip, rch, rcolour, false);
+                }
+                continue;
+            }
+
+            int v = human.map[loc];
+            char ch;
+            SDL_Color colour;
+
+            switch (v)
+            {
+                case MAPunknown:
+                    ch = ' ';
+                    colour = textColour;
+                    break;
+                case MAPcity:
+                    ch = '*';		// unowned city
+                    colour = textColour;
+                    break;
+                case MAPsea:
+                    ch = '~';
+                    colour = COLOUR_SEA;
+                    break;
+                case MAPland:
+                    ch = '+';
+                    colour = COLOUR_LAND;
+                    break;
+                default:
+                    int t = typ[v];
+                    ch = (t == X) ? 'O' : typx[t].unichr;
+                    colour = playerColour[own[v]];
+                    break;
+            }
+
+            bool atCursor = (loc == human.curloc);
+            drawCell(x, y, charWidth, lineSkip, ch, colour, atCursor);
+        }
     }
 
     if (showRuler)
         drawText(rowRulerWidth * charWidth, mapTop + terrainRows * lineSkip,
-            toStringz(rulerLine(c0, terrainCols)), color);
+            toStringz(rulerLine(c0, terrainCols)), textColour);
 }
 
 
@@ -238,7 +439,7 @@ extern (C) void win_flush()
 	    drawText(0, row * lineSkip, vbuffer[row].ptr, white);
         }
 
-	drawMapRulers(lineSkip, white);
+	drawMap(lineSkip, white);
     }
 
     SDL_RenderPresent(renderer);
@@ -390,10 +591,12 @@ int main()
     // DA*/MT* pair for SDL, since nothing in display.d/text.d branches
     // on those values for anything but "is this player being watched
     // at all" -- see init.d's gameSetup() doc comment for the meaning
-    // of the rest of the parameters. rows/cols is VBUFROWS/VBUFCOLS,
-    // same as winmain.d passes, not a real screen size -- see that
-    // same doc comment for why.
-    gameSetup(NUMPLY, false, DAtty, MTterm, VBUFROWS, VBUFCOLS);
+    // of the rest of the parameters. rows/cols come from
+    // computeDispSize(), not VBUFROWS/VBUFCOLS -- see that function's
+    // doc comment for why.
+    int rows, cols;
+    computeDispSize(rows, cols);
+    gameSetup(NUMPLY, false, DAtty, MTterm, rows, cols);
 
     Player *human = getHuman();
     if (human.display)
@@ -443,9 +646,22 @@ int main()
             // stale (or garbage) content until the drag ends. The
             // renderer's target already tracks the window's pixel
             // size on its own; win_flush() just needs to be called.
+            //
+            // Also re-run computeDispSize() and feed it to
+            // setdispsize(), the same way textmain.d's termResized()
+            // dance keeps Text.Tmax/Display.Smax matching the real
+            // terminal size -- otherwise a resize (typically growing
+            // the window) leaves the engine's cursor-placement bounds
+            // stuck at whatever they were at startup.
             if (event.type == SDL_WINDOWEVENT &&
                 event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
             {
+                if (human.display)
+                {
+                    int newRows, newCols;
+                    computeDispSize(newRows, newCols);
+                    human.display.setdispsize(newRows, newCols);
+                }
                 win_flush();
             }
         }
