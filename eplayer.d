@@ -39,6 +39,57 @@ import feedback : invalidateSector;
 import core.stdc.stdio : sprintf;
 import std.uni : toUpper;
 
+version (Windows) {}
+else version (SDL2) {}
+else
+{
+
+/********************************
+ * Prompt for a city's production phase.
+ *
+ * This is the text frontend's counterpart to winmain.d's and
+ * sdlmain.d's dialogCitySelect(): same name, alternative
+ * implementation, picked by phasin() below the same way as the other
+ * two, via version(Windows)/version(SDL2)/else. Unlike those two,
+ * there's no modal dialog to hand the prompt to -- the text frontend
+ * has nothing but the same TTin()/TTunget() single-keypress channel
+ * phasin() itself already uses for everything else, so this just
+ * polls it directly, blocking the calling thread until a valid
+ * production-type letter comes in. That's fine here -- unlike in
+ * eplayer.d's other TTin() polling loops -- because nothing else
+ * needs to run concurrently while a human is deciding a city's
+ * production on this frontend.
+ *
+ * oldphase is unused: a plain keypress prompt has no "current
+ * selection" to default to or highlight, unlike a dialog box's OK
+ * button.
+ *
+ * Input:
+ *	d, t = the prompting player's Display and Text.
+ * Returns:
+ *	Index into var.d's typx[] for the chosen production type.
+ */
+
+int dialogCitySelect(Display *d, Text *t, int oldphase)
+{
+    d.cityProdDemands();
+    // Wait for input (which TTin() inserts via TTunget()).
+    int i = -1;
+    do
+    {
+	int ch = t.TTin();
+	if (ch >= 0)
+	{
+	    i = findTypeByChar(toUpper(ch));
+	    if (i < 0)
+		t.bell();
+	}
+    }
+    while (i < 0);
+    return i;
+}
+
+}
 
 // For each player
 
@@ -1569,7 +1620,6 @@ struct Player
 	version (Windows)
 	{
 	    i = dialogCitySelect(c.phs);
-	    ab = typx[i].unichr;
 	}
 	else version (SDL2)
 	{
@@ -1581,29 +1631,12 @@ struct Player
 	    // via TTunget(). That main loop isn't even running yet during
 	    // game setup, which is why that loop hung.
 	    i = dialogCitySelect(c.phs);
-	    ab = typx[i].unichr;
 	}
 	else
 	{
-	    d.cityProdDemands();
-	    // Wait for input (which TTin() inserts via TTunget()).
-	    i = -1;
-            do
-	    {
-	        int ch = t.TTin();
-	        if (ch < 0)
-		{
-		    // No keypress.
-		}
-		else
-		{
-		    ab = toUpper(ch);		// get char from tty
-		    i = findTypeByChar(ab);
-		    if (i < 0) t.bell();
-		}
-	    }
-	    while (i < 0);
+	    i = dialogCitySelect(d, t, c.phs);
 	}
+	ab = typx[i].unichr;
 	t.curs(t.DS(0) + 25);		// where we want the prod to beg
 	t.output(cast(char)(ab & 0xff));			// echo
 	c.phs = cast(byte) (i & 0xff);				// set city phase
