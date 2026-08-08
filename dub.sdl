@@ -37,17 +37,21 @@ configuration "gui-windows" {
 }
 
 // --- SDL2 GUI build (Linux and similar POSIX systems) ---
-// No SDL2 frontend exists yet -- sdlmain.d is a placeholder in the same
-// spirit as textmain.d below: it proves the "gui-sdl2" configuration
-// actually links and runs against SDL2, but the real game UI (map
-// rendering, sprites, sound, input) is still to be written.
+// Mostly still a placeholder, in the same spirit as textmain.d below:
+// it proves the "gui-sdl2" configuration actually links and runs
+// against SDL2 and draws the vbuffer text area, but the rest of the
+// real game UI (map rendering, sprites, sound, input) is still to be
+// written.
 //
 // bindbc-sdl's dynamic-binding config (the default) dlopens libSDL2 at
 // runtime rather than link against it, so no "libs" entry is needed
 // here -- just a working libSDL2 install on the target system.
+// SDL_TTF pulls in the bindbc.sdl.ttf bindings the same way, and
+// needs libSDL2_ttf on the target system too -- see sdlmain.d's
+// openMonoFont() for the (separate) matter of finding an actual font.
 configuration "gui-sdl2" {
     platforms "posix"
-    versions "SDL2"
+    versions "SDL2" "SDL_TTF"
     dependency "bindbc-sdl" version="~>1.4.2"
 
     sourceFiles "sdlmain.d"
