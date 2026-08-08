@@ -10,10 +10,11 @@
  * provide (win_flush(), sound_click()).
  *
  * What's still missing:
- *   - win_flush() draws the vbuffer text area (via SDL_ttf), but not
- *     the map -- there is no SDL_Renderer-based equivalent yet of
- *     textmain.d's drawPlayerMap() or winmain.d's map/sprite GDI
- *     blitting.
+ *   - win_flush() draws the vbuffer text area (via SDL_ttf) and, below
+ *     it, the horizontal/vertical map rulers (see drawMapRulers()) --
+ *     but not the map terrain itself.  There is no SDL_Renderer-based
+ *     equivalent yet of textmain.d's drawPlayerMap() or winmain.d's
+ *     map/sprite GDI blitting.
  *   - The vbuffer text only actually appears if a monospace TTF font
  *     was found at one of openMonoFont()'s hardcoded candidate paths.
  *     There's no bundled fallback font and no way to configure the
@@ -41,14 +42,16 @@ module sdlmain;
 
 import bindbc.sdl;
 import std.stdio : stderr, writeln, writefln;
+import std.string : toStringz;
 
 import core.stdc.time : time;
 
-import empire : DAtty, MTterm, setran, TYPMAX;
+import empire : DAtty, MTterm, setran, TYPMAX, Mrowmx, Mcolmx, ROW, COL;
 import init : gameSetup;
 import move : slice;
 import eplayer : Player;
 import display : Display;
+import ruler : rulerLine, rowRulerLabel, ROW_RULER_WIDTH;
 import text : VBUFROWS, VBUFCOLS, vbuffer;
 import var : typx;
 
@@ -100,6 +103,109 @@ private TTF_Font* openMonoFont(int ptsize)
 
 
 /*
+ * Render one line of text (nul-terminated, as vbuffer[] rows and the
+ * ruler strings below both are once passed through toStringz()) at
+ * the given pixel position. Shared by the vbuffer text area and the
+ * map rulers in win_flush() -- both are just rows of text at some
+ * (x, y), differing only in what string and column they start at.
+ *
+ * font is assumed non-null; callers only reach this from within
+ * win_flush()'s "if (font !is null)" block.
+ */
+private void drawText(int x, int y, const(char)* str, SDL_Color color)
+{
+    SDL_Surface* surface = TTF_RenderText_Solid(font, str, color);
+    if (surface is null)
+        return;	// e.g. a blank line, on some SDL_ttf versions
+
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_Rect dst;
+    dst.x = x;
+    dst.y = y;
+    dst.w = surface.w;
+    dst.h = surface.h;
+    SDL_FreeSurface(surface);
+
+    if (texture !is null)
+    {
+        SDL_RenderCopy(renderer, texture, null, &dst);
+        SDL_DestroyTexture(texture);
+    }
+}
+
+/*
+ * Horizontal and vertical map rulers, drawn below the vbuffer text
+ * area -- the SDL2 counterpart to textmain.d's drawPlayerMapNcurses()
+ * use of rulerLine()/rowRulerLabel(), except there's no map terrain
+ * to go with them yet (see the module comment above). The layout
+ * mirrors that function exactly -- same viewport sizing, centred on
+ * the cursor, same ROW_RULER_WIDTH-column/bottom-row placement -- so
+ * the rulers will already line up correctly once terrain drawing
+ * catches up to them.
+ *
+ * Unlike a character-cell terminal, the SDL window's size is in
+ * pixels, so it's converted to a map-column/row viewport size using
+ * the monospace font's fixed glyph width and TTF_FontLineSkip().
+ */
+private void drawMapRulers(int lineSkip, SDL_Color color)
+{
+    Player *human = getHuman();
+    if (human is null || human.display is null)
+        return;			// nothing to show yet
+
+    int charWidth, charHeight;
+    if (TTF_SizeUTF8(font, "0", &charWidth, &charHeight) != 0 || charWidth <= 0)
+        return;
+
+    int pixelWidth, pixelHeight;
+    SDL_GetRendererOutputSize(renderer, &pixelWidth, &pixelHeight);
+
+    // The vbuffer text area occupies the top VBUFROWS rows; whatever's
+    // left below it is available for the map viewport.
+    int availRows = pixelHeight / lineSkip - VBUFROWS;
+    int availCols = pixelWidth / charWidth;
+    if (availRows <= 0 || availCols <= 0)
+        return;			// window too small to bother
+
+    int mapRows = (availRows < Mrowmx + 1) ? availRows : Mrowmx + 1;
+    int mapCols = (availCols < Mcolmx + 1) ? availCols : Mcolmx + 1;
+
+    // Centre the viewport on the player's cursor, clamped to the map.
+    int r0 = ROW(human.curloc) - mapRows / 2;
+    if (r0 < 0) r0 = 0;
+    if (r0 > Mrowmx + 1 - mapRows) r0 = Mrowmx + 1 - mapRows;
+
+    int c0 = COL(human.curloc) - mapCols / 2;
+    if (c0 < 0) c0 = 0;
+    if (c0 > Mcolmx + 1 - mapCols) c0 = Mcolmx + 1 - mapCols;
+
+    // The bottom row of the viewport is the column ruler, not
+    // terrain, as long as there's room for at least one terrain row
+    // above it -- same condition drawPlayerMapNcurses() uses.
+    bool showRuler = mapRows >= 2;
+    int terrainRows = showRuler ? mapRows - 1 : mapRows;
+
+    // The row ruler takes over the left ROW_RULER_WIDTH columns from
+    // the terrain, same as showRuler does with the bottom row.
+    int rowRulerWidth = (mapCols > ROW_RULER_WIDTH) ? ROW_RULER_WIDTH : 0;
+    int terrainCols = mapCols - rowRulerWidth;
+
+    int mapTop = VBUFROWS * lineSkip;
+
+    if (rowRulerWidth)
+    {
+        foreach (r; 0 .. terrainRows)
+            drawText(0, mapTop + r * lineSkip,
+                toStringz(rowRulerLabel(r0 + r)), color);
+    }
+
+    if (showRuler)
+        drawText(rowRulerWidth * charWidth, mapTop + terrainRows * lineSkip,
+            toStringz(rulerLine(c0, terrainCols)), color);
+}
+
+
+/*
  * text.d calls these two hooks (declared extern(C) there, with no
  * body -- each frontend provides its own) to flush output and to
  * signal the terminal bell. See the module comment above for what
@@ -129,26 +235,10 @@ extern (C) void win_flush()
             // (text.d's clear() nul-terminates it), so .ptr is a
             // valid C string as-is -- same assumption winmain.d's
             // WM_PAINT handler makes about it (see the comment there).
-            SDL_Surface* surface =
-                TTF_RenderText_Solid(font, vbuffer[row].ptr, white);
-            if (surface is null)
-                continue;	// e.g. a blank line, on some SDL_ttf versions
-
-            SDL_Texture* texture =
-                SDL_CreateTextureFromSurface(renderer, surface);
-            SDL_Rect dst;
-            dst.x = 0;
-            dst.y = row * lineSkip;
-            dst.w = surface.w;
-            dst.h = surface.h;
-            SDL_FreeSurface(surface);
-
-            if (texture !is null)
-            {
-                SDL_RenderCopy(renderer, texture, null, &dst);
-                SDL_DestroyTexture(texture);
-            }
+	    drawText(0, row * lineSkip, vbuffer[row].ptr, white);
         }
+
+	drawMapRulers(lineSkip, white);
     }
 
     SDL_RenderPresent(renderer);
@@ -269,14 +359,22 @@ int main()
     // candidate font opens, font just stays null and win_flush() skips
     // drawing the vbuffer text instead of failing the whole program --
     // see the module comment and openMonoFont()'s doc comment.
-    bool ttfReady = loadSDLTTF() == sdlTTFSupport && TTF_Init() == 0;
-    if (!ttfReady)
-        stderr.writeln("SDL2_ttf unavailable; vbuffer text won't be drawn.");
+    bool ttfReady = false;
+    if (loadSDLTTF() != sdlTTFSupport)
+    {
+	stderr.writeln("SDL2_ttf unavailable; can't draw text area.");
+    }
+    else if (TTF_Init() != 0)
+    {
+	stderr.writeln("TTF_Init() failed; can't draw text area.");
+    }
+    else if ((font = openMonoFont(16)) is null)
+    {
+	stderr.writeln("No monospace font found; vbuffer text won't be drawn.");
+    }
     else
     {
-        font = openMonoFont(16);
-        if (font is null)
-            stderr.writeln("No monospace font found; vbuffer text won't be drawn.");
+	ttfReady = true;
     }
     scope (exit)
     {

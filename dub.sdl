@@ -13,8 +13,8 @@ targetName "empire"
 // text.d, printf.d, and feedback.d already gate their Windows-specific
 // bits behind version(Windows) internally, so they're safe everywhere.
 sourceFiles "empire.d" "display.d" "eplayer.d" "feedback.d" "init.d" \
-            "maps.d" "mapdata.d" "move.d" "path.d" "printf.d" "sub2.d" \
-            "text.d" "var.d"
+            "maps.d" "mapdata.d" "move.d" "path.d" "printf.d" "ruler.d" \
+            "sub2.d" "text.d" "var.d"
 
 // --- Windows GUI build (the only target the old makefile produced) ---
 configuration "gui-windows" {
