@@ -56,7 +56,7 @@ import var : typx;
 enum int NUMPLY = 2;
 
 // Set once in main() before the game engine can call win_flush() or
-// dialogCitySelectSDL(); read only from the main thread, same one
+// dialogCitySelect(); read only from the main thread, same one
 // that set them.
 private __gshared SDL_Renderer* renderer;
 private __gshared SDL_Window* mainWindow;
@@ -85,16 +85,19 @@ extern (C) void sound_click()
 /********************************
  * Dialog box to get a city's production phase.
  *
- * Mirrors winmain.d's dialogCitySelect(): eplayer.d's phasin() polls
- * TTin() for a keypress when there's no dialog to delegate to, but
- * TTin() only ever sees input that's been fed in via TTunget(), and
- * that only happens from this module's main-loop keydown handling --
- * which can't run while phasin() itself is blocking the same (single)
- * thread. SDL_ShowMessageBox() sidesteps that the same way Windows'
- * modal DialogBoxParamA() does: it pumps its own event loop for as
- * long as it's on screen, so it doesn't depend on sdlmain.d's main
- * loop at all -- including during game setup, before that loop has
- * even started.
+ * This is the SDL2 counterpart to winmain.d's dialogCitySelect(): same
+ * name, same signature, alternative implementation -- eplayer.d picks
+ * whichever one matches the active frontend with a version(Windows)/
+ * version(SDL2) check, the same way it already does for the import.
+ * eplayer.d's phasin() polls TTin() for a keypress when there's no
+ * dialog to delegate to, but TTin() only ever sees input that's been
+ * fed in via TTunget(), and that only happens from this module's
+ * main-loop keydown handling -- which can't run while phasin() itself
+ * is blocking the same (single) thread. SDL_ShowMessageBox() sidesteps
+ * that the same way Windows' modal DialogBoxParamA() does: it pumps
+ * its own event loop for as long as it's on screen, so it doesn't
+ * depend on sdlmain.d's main loop at all -- including during game
+ * setup, before that loop has even started.
  *
  * Input:
  *	oldphase = city's previous production phase (0..TYPMAX-1), or
@@ -103,7 +106,7 @@ extern (C) void sound_click()
  *	Index into var.d's typx[] for the chosen production type.
  */
 
-int dialogCitySelectSDL(int oldphase)
+int dialogCitySelect(int oldphase)
 {
     if (oldphase < 0 || oldphase >= TYPMAX)
         oldphase = 0;		// default to Army, same as winmain.d
