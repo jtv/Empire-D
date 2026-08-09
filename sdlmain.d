@@ -90,6 +90,14 @@ private __gshared SDL_Window* mainWindow;
 // discipline as renderer/mainWindow above.
 private __gshared TTF_Font* font;
 
+// Horizontal scroll bias, in map columns, applied on top of drawMap()'s
+// normal cursor-centring. Zero except while dialogModalCitySelect() is
+// up, which sets it so the city the dialog is about (and its immediate
+// neighbours) land beside the dialog's horizontally-centred box rather
+// than underneath it -- see that function. Main-thread-only, same as
+// the above.
+private __gshared int mapColBias = 0;
+
 // Candidate monospace font files to try, in order, until one opens.
 // This repo doesn't bundle a font (c.f. dub.sdl's gui-sdl2 comment on
 // libSDL2 itself needing to already be on the target system -- same
@@ -276,14 +284,52 @@ private void drawCell(int x, int y, int cellWidth, int cellHeight,
  * redraw does happen, but (unlike the ncurses version) won't animate
  * on its own while the display is otherwise idle.
  */
+/*
+ * Horizontal geometry of the map viewport, in character cells, for
+ * the window's current size: how wide a cell is, how many columns
+ * the row ruler takes up, and how many columns of terrain are left
+ * over. Shared by drawMap() (which used to compute this inline) and
+ * dialogModalCitySelect() (which needs it to work out how far it can
+ * shift the viewport before running out of map -- see mapColBias).
+ *
+ * Returns false, leaving the out params unset, if there's no font
+ * loaded or the window's too narrow to bother -- same bail-out
+ * conditions drawMap() already had inline.
+ */
+private bool mapHGeometry(out int charWidth, out int rowRulerWidth,
+    out int terrainCols)
+{
+    if (font is null)
+        return false;
+
+    int charHeight;
+    if (TTF_SizeUTF8(font, "0", &charWidth, &charHeight) != 0 || charWidth <= 0)
+        return false;
+
+    int pixelWidth, pixelHeight;
+    SDL_GetRendererOutputSize(renderer, &pixelWidth, &pixelHeight);
+    int availCols = pixelWidth / charWidth;
+    if (availCols <= 0)
+        return false;
+
+    int mapCols = (availCols < Mcolmx + 1) ? availCols : Mcolmx + 1;
+
+    // The row ruler takes over the left ROW_RULER_WIDTH columns from
+    // the terrain, same as drawMap()'s showRuler does with its bottom
+    // row.
+    rowRulerWidth = (mapCols > ROW_RULER_WIDTH) ? ROW_RULER_WIDTH : 0;
+    terrainCols = mapCols - rowRulerWidth;
+    return true;
+}
+
 private void drawMap(int lineSkip, SDL_Color textColour)
 {
     Player *human = getHuman();
     if (human is null || human.display is null)
         return;			// nothing to show yet
 
-    int charWidth, charHeight;
-    if (TTF_SizeUTF8(font, "0", &charWidth, &charHeight) != 0 || charWidth <= 0)
+    int charWidth, rowRulerWidth, terrainCols;
+    if (!mapHGeometry(charWidth, rowRulerWidth, terrainCols))
         return;
 
     int pixelWidth, pixelHeight;
@@ -292,23 +338,16 @@ private void drawMap(int lineSkip, SDL_Color textColour)
     // The vbuffer text area occupies the top VBUFROWS rows; whatever's
     // left below it is available for the map viewport.
     int availRows = pixelHeight / lineSkip - VBUFROWS;
-    int availCols = pixelWidth / charWidth;
-    if (availRows <= 0 || availCols <= 0)
+    if (availRows <= 0)
         return;			// window too small to bother
 
     int mapRows = (availRows < Mrowmx + 1) ? availRows : Mrowmx + 1;
-    int mapCols = (availCols < Mcolmx + 1) ? availCols : Mcolmx + 1;
 
     // The bottom row of the viewport is the column ruler, not
     // terrain, as long as there's room for at least one terrain row
     // above it -- same condition drawPlayerMapNcurses() uses.
     bool showRuler = mapRows >= 2;
     int terrainRows = showRuler ? mapRows - 1 : mapRows;
-
-    // The row ruler takes over the left ROW_RULER_WIDTH columns from
-    // the terrain, same as showRuler does with the bottom row.
-    int rowRulerWidth = (mapCols > ROW_RULER_WIDTH) ? ROW_RULER_WIDTH : 0;
-    int terrainCols = mapCols - rowRulerWidth;
 
     // Centre the viewport on the player's cursor, clamped to the map.
     // Clamp against terrainRows/terrainCols, not mapRows/mapCols: the
@@ -320,7 +359,12 @@ private void drawMap(int lineSkip, SDL_Color textColour)
     if (r0 < 0) r0 = 0;
     if (r0 > Mrowmx + 1 - terrainRows) r0 = Mrowmx + 1 - terrainRows;
 
-    int c0 = COL(human.curloc) - terrainCols / 2;
+    // mapColBias shifts the viewport away from dead centre while
+    // dialogModalCitySelect() is up, so its box doesn't land right on
+    // top of the city it's asking about -- see that variable's doc
+    // comment. Zero the rest of the time, same as if this term wasn't
+    // here at all.
+    int c0 = COL(human.curloc) - terrainCols / 2 + mapColBias;
     if (c0 < 0) c0 = 0;
     if (c0 > Mcolmx + 1 - terrainCols) c0 = Mcolmx + 1 - terrainCols;
 
@@ -576,6 +620,49 @@ private int dialogModalCitySelect(int oldphase)
     if (boxX < 0) boxX = 0;
     if (boxY < 0) boxY = 0;
 
+    // This box sits horizontally centred, right on top of where
+    // drawMap() would otherwise centre the viewport on the city being
+    // asked about -- exactly where a new city (seabound? landlocked?
+    // coastal?) most needs to be seen. Push the viewport off centre,
+    // in whichever direction the map actually has room for, so the
+    // city and its immediate neighbours end up visible beside the box
+    // instead of hidden under it; see mapColBias's doc comment and
+    // redraw() below, which is what actually applies this.
+    mapColBias = 0;
+    {
+        Player *human = getHuman();
+        int hCharWidth, hRowRulerWidth, terrainCols;
+        if (human !is null && mapHGeometry(hCharWidth, hRowRulerWidth, terrainCols))
+        {
+            int maxC0 = Mcolmx + 1 - terrainCols;
+            int baseC0 = COL(human.curloc) - terrainCols / 2;
+            if (baseC0 < 0) baseC0 = 0;
+            if (baseC0 > maxC0) baseC0 = maxC0;
+
+            // A quarter of the viewport's width is enough to clear a
+            // centred box that's much narrower than the window, and
+            // at least 2 columns guarantees the city's immediate
+            // (west/east) neighbours specifically, even in a tiny
+            // window.
+            int shiftCols = terrainCols / 4;
+            if (shiftCols < 2)
+                shiftCols = 2;
+
+            int eastC0 = baseC0 + shiftCols;	// city moves screen-left
+            if (eastC0 > maxC0) eastC0 = maxC0;
+            int westC0 = baseC0 - shiftCols;	// city moves screen-right
+            if (westC0 < 0) westC0 = 0;
+
+            // Near a map edge, one of these directions clamps straight
+            // back down to little or no actual shift -- use whichever
+            // direction achieved the bigger real move.
+            int devEast = eastC0 - baseC0;
+            int devWest = baseC0 - westC0;
+            mapColBias = (devEast >= devWest) ? shiftCols : -shiftCols;
+        }
+    }
+    scope(exit) mapColBias = 0;
+
     ProdButton[TYPMAX] buttons;
     int y = boxY + PADY + titleH + GAP + msgH + GAP;
     foreach (i; 0 .. TYPMAX)
@@ -587,6 +674,12 @@ private int dialogModalCitySelect(int oldphase)
 
     void redraw()
     {
+        // Repaint the map/text view first, rather than dimming and
+        // boxing over whatever the last frame happened to leave in
+        // the backbuffer: that's the only way the mapColBias set
+        // above actually reaches the screen.
+        win_flush();
+
         // Dim the game view so the dialog reads as being on top of it,
         // the way a real modal window would.
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
