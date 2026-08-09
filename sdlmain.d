@@ -540,7 +540,7 @@ private int dialogModalCitySelect(int oldphase)
 {
     immutable string title = "City production";
     immutable string message =
-        "Select what this city should produce (click, or press its letter):";
+        "What should this city produce?";
 
     string[TYPMAX] labels;
     int lineSkip = TTF_FontLineSkip(font);
