@@ -45,6 +45,7 @@
 module sdlmain;
 
 import bindbc.sdl;
+import std.conv : to;
 import std.stdio : stderr, writeln, writefln;
 import std.string : toStringz, fromStringz;
 import std.format : format;
@@ -547,7 +548,7 @@ private int dialogModalCitySelect(int oldphase)
     int boxW = 0;
     foreach (i; 0 .. TYPMAX)
     {
-        labels[i] = format("%c - %s", typx[i].unichr, typx[i].name);
+        labels[i] = format("%c - %s", typx[i].unichr, to!string(typx[i].name));
         int w, h;
         TTF_SizeUTF8(font, toStringz(labels[i]), &w, &h);
         if (w > boxW)
