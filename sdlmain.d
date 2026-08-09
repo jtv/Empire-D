@@ -46,7 +46,7 @@ module sdlmain;
 
 import bindbc.sdl;
 import std.stdio : stderr, writeln, writefln;
-import std.string : toStringz;
+import std.string : toStringz, fromStringz;
 import std.format : format;
 
 import core.stdc.time : time;
@@ -490,7 +490,7 @@ private int dialogCitySelectMessageBox(int oldphase)
     int buttonid = oldphase;
     if (SDL_ShowMessageBox(&data, &buttonid) != 0)
     {
-        stderr.writefln("SDL_ShowMessageBox failed: %s", SDL_GetError());
+        stderr.writefln("SDL_ShowMessageBox failed: %s", SDL_GetError().fromStringz);
         return oldphase;	// best effort: keep the previous phase
     }
     return buttonid;
@@ -762,7 +762,7 @@ int main()
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0)
     {
-        stderr.writefln("SDL_Init failed: %s", SDL_GetError());
+        stderr.writefln("SDL_Init failed: %s", SDL_GetError().fromStringz);
         return 1;
     }
     scope (exit)
@@ -773,7 +773,7 @@ int main()
         640, 480, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
     if (window is null)
     {
-        stderr.writefln("SDL_CreateWindow failed: %s", SDL_GetError());
+        stderr.writefln("SDL_CreateWindow failed: %s", SDL_GetError().fromStringz);
         return 1;
     }
     scope (exit)
@@ -784,7 +784,7 @@ int main()
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     if (renderer is null)
     {
-        stderr.writefln("SDL_CreateRenderer failed: %s", SDL_GetError());
+        stderr.writefln("SDL_CreateRenderer failed: %s", SDL_GetError().fromStringz);
         return 1;
     }
     scope (exit)
