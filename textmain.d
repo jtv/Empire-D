@@ -196,19 +196,6 @@ void drawPlayerMapNcurses()
     int mapRows = (availRows < Mrowmx + 1) ? availRows : Mrowmx + 1;
     int mapCols = (availCols < Mcolmx + 1) ? availCols : Mcolmx + 1;
 
-    // Centre the viewport on the player's cursor, clamped to the map.
-    int r0 = ROW(human.curloc) - mapRows / 2;
-    if (r0 < 0) r0 = 0;
-    if (r0 > Mrowmx + 1 - mapRows) r0 = Mrowmx + 1 - mapRows;
-
-    int c0 = COL(human.curloc) - mapCols / 2;
-    if (c0 < 0) c0 = 0;
-    if (c0 > Mcolmx + 1 - mapCols) c0 = Mcolmx + 1 - mapCols;
-
-    // The unit being moved, if we're in move mode
-    bool moving = (human.mode == mdMOVE && human.usv !is null);
-    int movingLoc = moving ? human.usv.loc : -1;
-
     // The bottom row of the viewport is a ruler, not terrain, as long as
     // there's room for at least one terrain row above it.
     bool showRuler = mapRows >= 2;
@@ -220,6 +207,24 @@ void drawPlayerMapNcurses()
     // column left over once it does.
     int rowRulerWidth = (mapCols > ROW_RULER_WIDTH) ? ROW_RULER_WIDTH : 0;
     int terrainCols = mapCols - rowRulerWidth;
+
+    // Centre the viewport on the player's cursor, clamped to the map.
+    // Clamp against terrainRows/terrainCols, not mapRows/mapCols: the
+    // latter include the screen space the rulers just took over, which
+    // isn't actually available for showing terrain, so clamping against
+    // them would leave the map's bottom row and rightmost column(s)
+    // permanently out of view no matter how far the viewport scrolls.
+    int r0 = ROW(human.curloc) - terrainRows / 2;
+    if (r0 < 0) r0 = 0;
+    if (r0 > Mrowmx + 1 - terrainRows) r0 = Mrowmx + 1 - terrainRows;
+
+    int c0 = COL(human.curloc) - terrainCols / 2;
+    if (c0 < 0) c0 = 0;
+    if (c0 > Mcolmx + 1 - terrainCols) c0 = Mcolmx + 1 - terrainCols;
+
+    // The unit being moved, if we're in move mode
+    bool moving = (human.mode == mdMOVE && human.usv !is null);
+    int movingLoc = moving ? human.usv.loc : -1;
 
     int screenRow = cast(int) vbuffer.length;
     for (int r = 0; r < terrainRows; r++)
@@ -346,14 +351,31 @@ void drawPlayerMap()
     int mapRows = (availRows < Mrowmx + 1) ? availRows : Mrowmx + 1;
     int mapCols = (availCols < Mcolmx + 1) ? availCols : Mcolmx + 1;
 
-    // Centre the viewport on the player's cursor, clamped to the map.
-    int r0 = ROW(human.curloc) - mapRows / 2;
-    if (r0 < 0) r0 = 0;
-    if (r0 > Mrowmx + 1 - mapRows) r0 = Mrowmx + 1 - mapRows;
+    // The bottom row of the viewport is a ruler, not terrain, as long as
+    // there's room for at least one terrain row above it.
+    bool showRuler = mapRows >= 2;
+    int terrainRows = showRuler ? mapRows - 1 : mapRows;
 
-    int c0 = COL(human.curloc) - mapCols / 2;
+    // The vertical ruler takes over the left ROW_RULER_WIDTH columns
+    // from the terrain, same as showRuler does with the bottom row --
+    // as long as there's at least one terrain column left over once
+    // it does.
+    int rowRulerWidth = (mapCols > ROW_RULER_WIDTH) ? ROW_RULER_WIDTH : 0;
+    int terrainCols = mapCols - rowRulerWidth;
+
+    // Centre the viewport on the player's cursor, clamped to the map.
+    // Clamp against terrainRows/terrainCols, not mapRows/mapCols: the
+    // latter include the screen space the rulers just took over, which
+    // isn't actually available for showing terrain, so clamping against
+    // them would leave the map's bottom row and rightmost column(s)
+    // permanently out of view no matter how far the viewport scrolls.
+    int r0 = ROW(human.curloc) - terrainRows / 2;
+    if (r0 < 0) r0 = 0;
+    if (r0 > Mrowmx + 1 - terrainRows) r0 = Mrowmx + 1 - terrainRows;
+
+    int c0 = COL(human.curloc) - terrainCols / 2;
     if (c0 < 0) c0 = 0;
-    if (c0 > Mcolmx + 1 - mapCols) c0 = Mcolmx + 1 - mapCols;
+    if (c0 > Mcolmx + 1 - terrainCols) c0 = Mcolmx + 1 - terrainCols;
 
     static immutable string[7] playerColour =
 	[ "",		// no player 0
@@ -374,18 +396,6 @@ void drawPlayerMap()
     // for as long as hmove() is waiting for a direction key.
     bool moving = (human.mode == mdMOVE && human.usv !is null);
     int movingLoc = moving ? human.usv.loc : -1;
-
-    // The bottom row of the viewport is a ruler, not terrain, as long as
-    // there's room for at least one terrain row above it.
-    bool showRuler = mapRows >= 2;
-    int terrainRows = showRuler ? mapRows - 1 : mapRows;
-
-    // The vertical ruler takes over the left ROW_RULER_WIDTH columns
-    // from the terrain, same as showRuler does with the bottom row --
-    // as long as there's at least one terrain column left over once
-    // it does.
-    int rowRulerWidth = (mapCols > ROW_RULER_WIDTH) ? ROW_RULER_WIDTH : 0;
-    int terrainCols = mapCols - rowRulerWidth;
 
     char[] line;
     for (int r = 0; r < terrainRows; r++)

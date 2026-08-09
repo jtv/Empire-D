@@ -47,6 +47,7 @@ module sdlmain;
 import bindbc.sdl;
 import std.stdio : stderr, writeln, writefln;
 import std.string : toStringz;
+import std.format : format;
 
 import core.stdc.time : time;
 import core.time : MonoTime;
@@ -60,7 +61,7 @@ import display : Display;
 import maps : revealUnderneath, RevealKind;
 import ruler : rulerLine, rowRulerLabel, ROW_RULER_WIDTH;
 import text : VBUFROWS, vbuffer;
-import var : typx, typ, own;
+import var : typx, typ, own, findTypeByChar;
 
 // Hard-wired for now: 1 human player + 1 computer player. Same as
 // textmain.d -- see that file's module comment for why this should
@@ -297,15 +298,6 @@ private void drawMap(int lineSkip, SDL_Color textColour)
     int mapRows = (availRows < Mrowmx + 1) ? availRows : Mrowmx + 1;
     int mapCols = (availCols < Mcolmx + 1) ? availCols : Mcolmx + 1;
 
-    // Centre the viewport on the player's cursor, clamped to the map.
-    int r0 = ROW(human.curloc) - mapRows / 2;
-    if (r0 < 0) r0 = 0;
-    if (r0 > Mrowmx + 1 - mapRows) r0 = Mrowmx + 1 - mapRows;
-
-    int c0 = COL(human.curloc) - mapCols / 2;
-    if (c0 < 0) c0 = 0;
-    if (c0 > Mcolmx + 1 - mapCols) c0 = Mcolmx + 1 - mapCols;
-
     // The bottom row of the viewport is the column ruler, not
     // terrain, as long as there's room for at least one terrain row
     // above it -- same condition drawPlayerMapNcurses() uses.
@@ -316,6 +308,20 @@ private void drawMap(int lineSkip, SDL_Color textColour)
     // the terrain, same as showRuler does with the bottom row.
     int rowRulerWidth = (mapCols > ROW_RULER_WIDTH) ? ROW_RULER_WIDTH : 0;
     int terrainCols = mapCols - rowRulerWidth;
+
+    // Centre the viewport on the player's cursor, clamped to the map.
+    // Clamp against terrainRows/terrainCols, not mapRows/mapCols: the
+    // latter include the screen space the rulers just took over, which
+    // isn't actually available for showing terrain, so clamping against
+    // them would leave the map's bottom row and rightmost column(s)
+    // permanently out of view no matter how far the viewport scrolls.
+    int r0 = ROW(human.curloc) - terrainRows / 2;
+    if (r0 < 0) r0 = 0;
+    if (r0 > Mrowmx + 1 - terrainRows) r0 = Mrowmx + 1 - terrainRows;
+
+    int c0 = COL(human.curloc) - terrainCols / 2;
+    if (c0 < 0) c0 = 0;
+    if (c0 > Mcolmx + 1 - terrainCols) c0 = Mcolmx + 1 - terrainCols;
 
     int mapTop = VBUFROWS * lineSkip;
 
@@ -451,34 +457,19 @@ extern (C) void sound_click()
 }
 
 /********************************
- * Dialog box to get a city's production phase.
+ * Fallback dialog box to get a city's production phase, used only
+ * when no font is loaded (see dialogCitySelect() below) -- dumb but
+ * functional, since it's a native OS dialog rather than something
+ * this module draws itself.
  *
- * This is the SDL2 counterpart to winmain.d's dialogCitySelect(): same
- * name, same signature, alternative implementation -- eplayer.d picks
- * whichever one matches the active frontend with a version(Windows)/
- * version(SDL2) check, the same way it already does for the import.
- * eplayer.d's phasin() polls TTin() for a keypress when there's no
- * dialog to delegate to, but TTin() only ever sees input that's been
- * fed in via TTunget(), and that only happens from this module's
- * main-loop keydown handling -- which can't run while phasin() itself
- * is blocking the same (single) thread. SDL_ShowMessageBox() sidesteps
- * that the same way Windows' modal DialogBoxParamA() does: it pumps
- * its own event loop for as long as it's on screen, so it doesn't
- * depend on sdlmain.d's main loop at all -- including during game
- * setup, before that loop has even started.
- *
- * Input:
- *	oldphase = city's previous production phase (0..TYPMAX-1), or
- *	           an out-of-range value for a new city.
- * Returns:
- *	Index into var.d's typx[] for the chosen production type.
+ * SDL_MessageBoxButtonData has no letter-accelerator concept, only
+ * SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT/_ESCAPEKEY_DEFAULT, so this
+ * can't offer the A/F/D/... shortcuts dialogModalCitySelect() does --
+ * mouse (or Tab/Enter) only.
  */
 
-int dialogCitySelect(int oldphase)
+private int dialogCitySelectMessageBox(int oldphase)
 {
-    if (oldphase < 0 || oldphase >= TYPMAX)
-        oldphase = 0;		// default to Army, same as winmain.d
-
     SDL_MessageBoxButtonData[TYPMAX] buttons;
     foreach (i, ref b; buttons)
     {
@@ -503,6 +494,249 @@ int dialogCitySelect(int oldphase)
         return oldphase;	// best effort: keep the previous phase
     }
     return buttonid;
+}
+
+/*
+ * One row of the production dialog: its on-screen rectangle (used for
+ * both drawing and mouse hit-testing) and the var.d typx[] index it
+ * selects.
+ */
+private struct ProdButton
+{
+    SDL_Rect rect;
+    int index;
+}
+
+/********************************
+ * Dialog box to get a city's production phase, drawn and driven by
+ * hand instead of via SDL_ShowMessageBox() -- needed to get the same
+ * A/F/D/T/S/R/C/B keyboard shortcuts textmain.d's dialogCitySelect()
+ * offers (see var.d's typx[].unichr and findTypeByChar()), which
+ * SDL_MessageBoxButtonData has no way to express: its only
+ * accelerator-like flags are SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT
+ * and _ESCAPEKEY_DEFAULT, not arbitrary per-button letters.
+ *
+ * Like SDL_ShowMessageBox() (see the old version of this function's
+ * comment, kept above on dialogCitySelectMessageBox()), this pumps
+ * its own SDL_WaitEvent() loop for as long as it's on screen, so it
+ * doesn't depend on sdlmain.d's main loop at all -- including during
+ * game setup, before that loop has even started. An SDL_QUIT seen
+ * here is re-queued with SDL_PushEvent() rather than acted on
+ * directly, so the main loop still does the actual quitting once this
+ * function returns.
+ *
+ * Needs the font loaded by main() to draw any text at all; if that
+ * failed (see openMonoFont()), dialogCitySelect() falls back to
+ * dialogCitySelectMessageBox() instead of calling this.
+ *
+ * Input:
+ *	oldphase = city's previous production phase (0..TYPMAX-1),
+ *	           already clamped into range by dialogCitySelect().
+ * Returns:
+ *	Index into var.d's typx[] for the chosen production type.
+ */
+
+private int dialogModalCitySelect(int oldphase)
+{
+    immutable string title = "City production";
+    immutable string message =
+        "Select what this city should produce (click, or press its letter):";
+
+    string[TYPMAX] labels;
+    int lineSkip = TTF_FontLineSkip(font);
+    int boxW = 0;
+    foreach (i; 0 .. TYPMAX)
+    {
+        labels[i] = format("%c - %s", typx[i].unichr, typx[i].name);
+        int w, h;
+        TTF_SizeUTF8(font, toStringz(labels[i]), &w, &h);
+        if (w > boxW)
+            boxW = w;
+    }
+
+    int titleW, titleH, msgW, msgH;
+    TTF_SizeUTF8(font, toStringz(title), &titleW, &titleH);
+    TTF_SizeUTF8(font, toStringz(message), &msgW, &msgH);
+    if (titleW > boxW) boxW = titleW;
+    if (msgW > boxW) boxW = msgW;
+
+    enum int PADX = 12;
+    enum int PADY = 10;
+    enum int GAP = 4;
+
+    boxW += PADX * 2;
+    int rowH = lineSkip + GAP;
+    int boxH = PADY * 2 + titleH + GAP + msgH + GAP + TYPMAX * rowH;
+
+    int winW, winH;
+    SDL_GetRendererOutputSize(renderer, &winW, &winH);
+    int boxX = (winW - boxW) / 2;
+    int boxY = (winH - boxH) / 2;
+    if (boxX < 0) boxX = 0;
+    if (boxY < 0) boxY = 0;
+
+    ProdButton[TYPMAX] buttons;
+    int y = boxY + PADY + titleH + GAP + msgH + GAP;
+    foreach (i; 0 .. TYPMAX)
+    {
+        buttons[i].index = cast(int) i;
+        buttons[i].rect = SDL_Rect(boxX + PADX, y, boxW - PADX * 2, lineSkip);
+        y += rowH;
+    }
+
+    void redraw()
+    {
+        // Dim the game view so the dialog reads as being on top of it,
+        // the way a real modal window would.
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 160);
+        SDL_Rect full = SDL_Rect(0, 0, winW, winH);
+        SDL_RenderFillRect(renderer, &full);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+        SDL_Rect box = SDL_Rect(boxX, boxY, boxW, boxH);
+        SDL_SetRenderDrawColor(renderer, 20, 20, 20, 255);
+        SDL_RenderFillRect(renderer, &box);
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_RenderDrawRect(renderer, &box);
+
+        drawText(boxX + PADX, boxY + PADY, toStringz(title), COLOUR_WHITE);
+        drawText(boxX + PADX, boxY + PADY + titleH + GAP, toStringz(message),
+            COLOUR_WHITE);
+
+        foreach (i; 0 .. TYPMAX)
+        {
+            // Highlight the previous phase, same as the
+            // RETURNKEY_DEFAULT button used to -- Enter picks it.
+            if (cast(int) i == oldphase)
+            {
+                SDL_SetRenderDrawColor(renderer, 70, 70, 70, 255);
+                SDL_RenderFillRect(renderer, &buttons[i].rect);
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                SDL_RenderDrawRect(renderer, &buttons[i].rect);
+            }
+            drawText(buttons[i].rect.x + 4, buttons[i].rect.y,
+                toStringz(labels[i]), COLOUR_WHITE);
+        }
+
+        SDL_RenderPresent(renderer);
+    }
+
+    redraw();
+
+    for (;;)
+    {
+        SDL_Event event;
+        if (SDL_WaitEvent(&event) == 0)
+        {
+            stderr.writefln("SDL_WaitEvent failed: %s", SDL_GetError());
+            return oldphase;	// best effort: keep the previous phase
+        }
+
+        switch (event.type)
+        {
+            case SDL_QUIT:
+                // Don't quit here -- let the main loop see this event
+                // and shut down normally once this function returns.
+                SDL_PushEvent(&event);
+                return oldphase;
+
+            case SDL_KEYDOWN:
+            {
+                SDL_Keycode sym = event.key.keysym.sym;
+                if (sym == SDLK_ESCAPE)
+                    return oldphase;
+                if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER)
+                    return oldphase;	// Enter picks the highlighted default
+
+                // SDL's keycodes for the basic Latin range equal their
+                // ASCII codepoints (same assumption main()'s keydown
+                // handling makes) -- uppercase and look it up the same
+                // way eplayer.d's text-frontend dialogCitySelect()
+                // does via findTypeByChar(toUpper(ch)).
+                if (sym >= 'a' && sym <= 'z')
+                    sym -= 'a' - 'A';
+                int i = findTypeByChar(cast(int) sym);
+                if (i >= 0)
+                    return i;
+                break;	// not a production-type letter: ignore it
+            }
+
+            case SDL_MOUSEBUTTONDOWN:
+                if (event.button.button == SDL_BUTTON_LEFT)
+                {
+                    int mx = event.button.x, my = event.button.y;
+                    foreach (i; 0 .. TYPMAX)
+                    {
+                        SDL_Rect r = buttons[i].rect;
+                        if (mx >= r.x && mx < r.x + r.w &&
+                            my >= r.y && my < r.y + r.h)
+                            return cast(int) i;
+                    }
+                }
+                break;
+
+            case SDL_WINDOWEVENT:
+                // Keep the dialog visible/correctly placed across a
+                // resize or after being uncovered, the same idea as
+                // main()'s SDL_WINDOWEVENT_SIZE_CHANGED handling for
+                // the normal map view.
+                if (event.window.event == SDL_WINDOWEVENT_EXPOSED ||
+                    event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+                    redraw();
+                break;
+
+            default:
+                break;
+        }
+    }
+}
+
+/********************************
+ * Dialog box to get a city's production phase.
+ *
+ * This is the SDL2 counterpart to winmain.d's dialogCitySelect(): same
+ * name, same signature, alternative implementation -- eplayer.d picks
+ * whichever one matches the active frontend with a version(Windows)/
+ * version(SDL2) check, the same way it already does for the import.
+ * eplayer.d's phasin() polls TTin() for a keypress when there's no
+ * dialog to delegate to, but TTin() only ever sees input that's been
+ * fed in via TTunget(), and that only happens from this module's
+ * main-loop keydown handling -- which can't run while phasin() itself
+ * is blocking the same (single) thread. dialogModalCitySelect() (and,
+ * as a fallback, dialogCitySelectMessageBox()) sidestep that the same
+ * way Windows' modal DialogBoxParamA() does: each pumps its own event
+ * loop for as long as it's on screen, so neither depends on
+ * sdlmain.d's main loop at all -- including during game setup, before
+ * that loop has even started.
+ *
+ * Input:
+ *	oldphase = city's previous production phase (0..TYPMAX-1), or
+ *	           an out-of-range value for a new city.
+ * Returns:
+ *	Index into var.d's typx[] for the chosen production type.
+ */
+
+int dialogCitySelect(int oldphase)
+{
+    if (oldphase < 0 || oldphase >= TYPMAX)
+        oldphase = 0;		// default to Army, same as winmain.d
+
+    // dialogModalCitySelect() needs the font to draw anything at all
+    // (see openMonoFont()); if it's not there, fall back to the
+    // native message box instead of putting up a dialog with no text
+    // and no visible way to tell one button from another.
+    int result = (font is null)
+        ? dialogCitySelectMessageBox(oldphase)
+        : dialogModalCitySelect(oldphase);
+
+    // Either path leaves the screen showing the dialog (or, for the
+    // message box, whatever the OS drew over the window); repaint the
+    // normal map/text view now rather than leaving that up on screen
+    // until something else happens to trigger a win_flush().
+    win_flush();
+
+    return result;
 }
 
 
