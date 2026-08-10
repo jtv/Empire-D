@@ -91,6 +91,16 @@ private __gshared SDL_Window* mainWindow;
 // discipline as renderer/mainWindow above.
 private __gshared TTF_Font* font;
 
+// A cached, rendered glyph.  We don't render each glyph we need
+// individually; instead we keep a cache of them ready for reuse.
+private struct CachedGlyph
+{
+    SDL_Texture* texture;
+    int width;
+    int height;
+}
+private __gshared CachedGlyph[ulong] glyphCache;
+
 // Horizontal scroll bias, in map columns, applied on top of drawMap()'s
 // normal cursor-centring. Zero except while dialogModalCitySelect() is
 // up, which sets it so the city the dialog is about (and its immediate
@@ -237,6 +247,57 @@ private void drawText(int x, int y, const(char)* str, SDL_Color color)
     }
 }
 
+private SDL_Texture* getGlyphTexture(char ch, SDL_Color colour,
+    out int width, out int height)
+{
+    ulong key = cast(ulong) ch;
+    key |= cast(ulong) colour.r << 8;
+    key |= cast(ulong) colour.g << 16;
+    key |= cast(ulong) colour.b << 24;
+    key |= cast(ulong) colour.a << 32;
+
+    if (auto cached = key in glyphCache)
+    {
+        width = (*cached).width;
+        height = (*cached).height;
+        return (*cached).texture;
+    }
+
+    char[2] buf;
+    buf[0] = ch;
+    buf[1] = '\0';
+
+    SDL_Surface* surface =
+        TTF_RenderText_Solid(font, buf.ptr, colour);
+    if (surface is null)
+    {
+        width = height = 0;
+        return null;
+    }
+
+    SDL_Texture* texture =
+        SDL_CreateTextureFromSurface(renderer, surface);
+    width = surface.w;
+    height = surface.h;
+    SDL_FreeSurface(surface);
+
+    if (texture is null)
+        return null;
+
+    glyphCache[key] = CachedGlyph(texture, width, height);
+    return texture;
+}
+
+private void clearGlyphCache()
+{
+    foreach (glyph; glyphCache.values)
+    {
+	if (glyph.texture !is null)
+	    SDL_DestroyTexture(glyph.texture);
+    }
+    glyphCache.clear();
+}
+
 /*
  * Draw one map cell's glyph at the given screen position, in colour,
  * with an optional reverse-video style highlight (used for the cursor
@@ -250,10 +311,6 @@ private void drawText(int x, int y, const(char)* str, SDL_Color color)
 private void drawCell(int x, int y, int cellWidth, int cellHeight,
     char ch, SDL_Color colour, bool highlighted)
 {
-    char[2] buf;
-    buf[0] = ch;
-    buf[1] = '\0';
-
     if (highlighted)
     {
         SDL_Rect rect;
@@ -263,10 +320,24 @@ private void drawCell(int x, int y, int cellWidth, int cellHeight,
         rect.h = cellHeight;
         SDL_SetRenderDrawColor(renderer, colour.r, colour.g, colour.b, 255);
         SDL_RenderFillRect(renderer, &rect);
-        drawText(x, y, buf.ptr, COLOUR_BLACK);
     }
-    else
-        drawText(x, y, buf.ptr, colour);
+
+    SDL_Colour glyphColour = highlighted
+    	? COLOUR_BLACK
+	: colour;
+    int glyphWidth;
+    int glyphHeight;
+    SDL_Texture* texture =
+    	getGlyphTexture(ch, glyphColour, glyphWidth, glyphHeight);
+    if (texture is null)
+    	return;
+
+    SDL_Rect dst;
+    dst.x = x;
+    dst.y = y;
+    dst.w = glyphWidth;
+    dst.h = glyphHeight;
+    SDL_RenderCopy(renderer, texture, null, &dst);
 }
 
 /*
@@ -1042,6 +1113,8 @@ int main()
     }
     scope (exit)
         SDL_DestroyRenderer(renderer);
+    scope (exit)
+    	clearGlyphCache();
 
     // Text rendering is best-effort: if SDL_ttf won't load or no
     // candidate font opens, font just stays null and win_flush() skips
