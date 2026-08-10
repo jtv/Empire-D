@@ -49,6 +49,7 @@ import std.conv : to;
 import std.stdio : stderr, writeln, writefln;
 import std.string : toStringz, fromStringz;
 import std.format : format;
+import std.math : abs;
 
 import core.stdc.time : time;
 import core.time : MonoTime;
@@ -97,6 +98,15 @@ private __gshared TTF_Font* font;
 // than underneath it -- see that function. Main-thread-only, same as
 // the above.
 private __gshared int mapColBias = 0;
+
+// Overrides drawMap()'s usual curloc-centred column-0 (see its "Centre
+// the viewport" comment) whenever it's >= 0. Set by
+// scrollMapAwayFromDialog() just before the production dialog goes up,
+// so the map underneath is scrolled clear of the dialog box instead of
+// centred on the city the dialog is about to obscure; reset to -1 by
+// dialogCitySelect() once the dialog closes. Main-thread-only, same as
+// the rest of this module's __gshared state.
+private __gshared int columnOriginOverride = -1;
 
 // Candidate monospace font files to try, in order, until one opens.
 // This repo doesn't bundle a font (c.f. dub.sdl's gui-sdl2 comment on
@@ -359,12 +369,12 @@ private void drawMap(int lineSkip, SDL_Color textColour)
     if (r0 < 0) r0 = 0;
     if (r0 > Mrowmx + 1 - terrainRows) r0 = Mrowmx + 1 - terrainRows;
 
-    // mapColBias shifts the viewport away from dead centre while
-    // dialogModalCitySelect() is up, so its box doesn't land right on
-    // top of the city it's asking about -- see that variable's doc
-    // comment. Zero the rest of the time, same as if this term wasn't
-    // here at all.
-    int c0 = COL(human.curloc) - terrainCols / 2 + mapColBias;
+    // Normally centred on the cursor, but scrollMapAwayFromDialog() overrides
+    // this just before the production dialog goes up, to scroll the city it's
+    /// about to prompt about away from under the dialog box.
+    int c0 = (columnOriginOverride >= 0)
+    	? columnOriginOverride
+	: COL(human.curloc) - terrainCols / 2;
     if (c0 < 0) c0 = 0;
     if (c0 > Mcolmx + 1 - terrainCols) c0 = Mcolmx + 1 - terrainCols;
 
@@ -552,6 +562,157 @@ private struct ProdButton
     int index;
 }
 
+// Shared padding constants for the production dialog box, used both
+// by computeCityDialogLayout() (to size the box) and
+// dialogModalCitySelect() (to position the title/message/buttons
+// inside it).
+private enum int DIALOG_PADX = 12;
+private enum int DIALOG_PADY = 10;
+private enum int DIALOG_GAP = 4;
+
+/*
+ * Everything about the production dialog's size and screen position
+ * that scrollMapAwayFromDialog() needs to know before the dialog is
+ * actually drawn, plus the bits dialogModalCitySelect() itself needs
+ * so the two don't compute (and risk disagreeing about) the box
+ * geometry twice. valid is false if there's no font loaded, matching
+ * dialogModalCitySelect()'s own precondition.
+ */
+private struct CityDialogLayout
+{
+    bool valid;
+    string[TYPMAX] labels;
+    int lineSkip;
+    int titleH, msgH;
+    int boxX, boxY, boxW, boxH;
+    int winW, winH;
+}
+
+private CityDialogLayout computeCityDialogLayout()
+{
+    CityDialogLayout L;
+    if (font is null || renderer is null)
+        return L;		// L.valid stays false
+
+    immutable string title = "City production";
+    immutable string message = "What should this city produce?";
+
+    L.lineSkip = TTF_FontLineSkip(font);
+    int boxW = 0;
+    foreach (i; 0 .. TYPMAX)
+    {
+        L.labels[i] = format("%c - %s", typx[i].unichr, to!string(typx[i].name));
+        int w, h;
+        TTF_SizeUTF8(font, toStringz(L.labels[i]), &w, &h);
+        if (w > boxW)
+            boxW = w;
+    }
+
+    int titleW, msgW;
+    TTF_SizeUTF8(font, toStringz(title), &titleW, &L.titleH);
+    TTF_SizeUTF8(font, toStringz(message), &msgW, &L.msgH);
+    if (titleW > boxW) boxW = titleW;
+    if (msgW > boxW) boxW = msgW;
+
+    boxW += DIALOG_PADX * 2;
+    int rowH = L.lineSkip + DIALOG_GAP;
+    L.boxW = boxW;
+    L.boxH = DIALOG_PADY * 2 + L.titleH + DIALOG_GAP + L.msgH + DIALOG_GAP +
+        TYPMAX * rowH;
+
+    SDL_GetRendererOutputSize(renderer, &L.winW, &L.winH);
+    L.boxX = (L.winW - L.boxW) / 2;
+    L.boxY = (L.winH - L.boxH) / 2;
+    if (L.boxX < 0) L.boxX = 0;
+    if (L.boxY < 0) L.boxY = 0;
+
+    L.valid = true;
+    return L;
+}
+
+/********************************
+ * Scroll the map viewport so the city about to have its production
+ * phase asked about doesn't end up hidden behind the dialog box
+ * layout describes -- otherwise, a city that's currently centred in
+ * view (the common case: phasin() in eplayer.d
+ * only re-centres the view when the city *isn't* already visible, so
+ * a city already on screen is generally centred on the cursor, right
+ * where the box goes) would vanish behind the dialog with no visual
+ * link between the two.
+ *
+ * Only changes which part of the map is scrolled into view (via
+ * columnOriginOverride, read by drawMap()); the player's cursor
+ * location itself is untouched. Repaints immediately via win_flush()
+ * so the frame dialogModalCitySelect()'s redraw() dims and draws its
+ * box over already reflects the new scroll position.
+ *
+ * If the window is too narrow for the city to actually clear the box
+ * in either direction (box plus city needing more width than the map
+ * viewport has to scroll through), this is a best-effort no-op and
+ * the dialog will simply cover the city, same as before this
+ * function existed.
+ */
+private void scrollMapAwayFromDialog(in CityDialogLayout layout)
+{
+    Player *human = getHuman();
+    if (!layout.valid || human is null || human.display is null)
+        return;
+
+    int charWidth, charHeight;
+    if (TTF_SizeUTF8(font, "0", &charWidth, &charHeight) != 0 || charWidth <= 0)
+        return;
+
+    int availRows = layout.winH / layout.lineSkip - VBUFROWS;
+    int availCols = layout.winW / charWidth;
+    if (availRows <= 0 || availCols <= 0)
+        return;
+
+    int mapCols = (availCols < Mcolmx + 1) ? availCols : Mcolmx + 1;
+    int rowRulerWidth = (mapCols > ROW_RULER_WIDTH) ? ROW_RULER_WIDTH : 0;
+    int terrainCols = mapCols - rowRulerWidth;
+    if (terrainCols <= 0)
+        return;
+
+    int maxC0 = Mcolmx + 1 - terrainCols;
+    int col = COL(human.curloc);
+
+    int defaultC0 = col - terrainCols / 2;
+    if (defaultC0 < 0) defaultC0 = 0;
+    if (defaultC0 > maxC0) defaultC0 = maxC0;
+
+    // Where the city's cell would land on screen under the normal
+    // (centred-on-cursor) scroll position, and whether that overlaps
+    // the dialog box horizontally -- if it doesn't (e.g. the city was
+    // close enough to a map edge that defaultC0 got clamped away from
+    // dead centre), there's nothing to do.
+    int cellX = (rowRulerWidth + col - defaultC0) * charWidth;
+    if (cellX + charWidth <= layout.boxX ||
+        cellX >= layout.boxX + layout.boxW)
+        return;
+
+    // Candidate scroll positions that would put the city just to the
+    // left, or just to the right, of the box (one column of margin
+    // either side); each is only valid if it's reachable without
+    // scrolling past the map's own edge.
+    int leftC0  = col - (layout.boxX / charWidth - rowRulerWidth) + 1;
+    int rightC0 = col - ((layout.boxX + layout.boxW) / charWidth -
+        rowRulerWidth) - 1;
+
+    bool leftOk  = leftC0  >= 0 && leftC0  <= maxC0;
+    bool rightOk = rightC0 >= 0 && rightC0 <= maxC0;
+
+    int newC0;
+    if (leftOk && (!rightOk || abs(leftC0 - defaultC0) <= abs(rightC0 - defaultC0)))
+        newC0 = leftC0;
+    else if (rightOk)
+        newC0 = rightC0;
+    else
+        return;		// can't clear the box either way -- give up
+
+    columnOriginOverride = newC0;
+    win_flush();
+}
+
 /********************************
  * Dialog box to get a city's production phase, drawn and driven by
  * hand instead of via SDL_ShowMessageBox() -- needed to get the same
@@ -581,44 +742,24 @@ private struct ProdButton
  *	Index into var.d's typx[] for the chosen production type.
  */
 
-private int dialogModalCitySelect(int oldphase)
+private int dialogModalCitySelect(int oldphase, in CityDialogLayout layout)
 {
     immutable string title = "City production";
     immutable string message =
         "What should this city produce?";
 
-    string[TYPMAX] labels;
-    int lineSkip = TTF_FontLineSkip(font);
-    int boxW = 0;
-    foreach (i; 0 .. TYPMAX)
-    {
-        labels[i] = format("%c - %s", typx[i].unichr, to!string(typx[i].name));
-        int w, h;
-        TTF_SizeUTF8(font, toStringz(labels[i]), &w, &h);
-        if (w > boxW)
-            boxW = w;
-    }
+    string[TYPMAX] labels = layout.labels;
+    int lineSkip = layout.lineSkip;
+    int titleH = layout.titleH, msgH = layout.msgH;
+    int boxX = layout.boxX, boxY = layout.boxY;
+    int boxW = layout.boxW, boxH = layout.boxH;
+    int winW = layout.winW, winH = layout.winH;
 
-    int titleW, titleH, msgW, msgH;
-    TTF_SizeUTF8(font, toStringz(title), &titleW, &titleH);
-    TTF_SizeUTF8(font, toStringz(message), &msgW, &msgH);
-    if (titleW > boxW) boxW = titleW;
-    if (msgW > boxW) boxW = msgW;
+    enum int PADX = DIALOG_PADX;
+    enum int PADY = DIALOG_PADY;
+    enum int GAP = DIALOG_GAP;
 
-    enum int PADX = 12;
-    enum int PADY = 10;
-    enum int GAP = 4;
-
-    boxW += PADX * 2;
     int rowH = lineSkip + GAP;
-    int boxH = PADY * 2 + titleH + GAP + msgH + GAP + TYPMAX * rowH;
-
-    int winW, winH;
-    SDL_GetRendererOutputSize(renderer, &winW, &winH);
-    int boxX = (winW - boxW) / 2;
-    int boxY = (winH - boxH) / 2;
-    if (boxX < 0) boxX = 0;
-    if (boxY < 0) boxY = 0;
 
     // This box sits horizontally centred, right on top of where
     // drawMap() would otherwise centre the viewport on the city being
@@ -819,10 +960,28 @@ int dialogCitySelect(int oldphase)
     // dialogModalCitySelect() needs the font to draw anything at all
     // (see openMonoFont()); if it's not there, fall back to the
     // native message box instead of putting up a dialog with no text
-    // and no visible way to tell one button from another.
-    int result = (font is null)
-        ? dialogCitySelectMessageBox(oldphase)
-        : dialogModalCitySelect(oldphase);
+    // and no visible way to tell one button from another. Computed
+    // once here so scrollMapAwayFromDialog() and
+    // dialogModalCitySelect() agree on exactly where the box will go.
+    CityDialogLayout layout = computeCityDialogLayout();
+
+    int result;
+    if (!layout.valid)
+        result = dialogCitySelectMessageBox(oldphase);
+    else
+    {
+        // Scroll the city into the clear before the box (and its
+        // dimmed backdrop) are drawn over it -- see that function's
+        // doc comment for why this doesn't already happen on its own.
+        scrollMapAwayFromDialog(layout);
+        result = dialogModalCitySelect(oldphase, layout);
+    }
+
+    // Undo scrollMapAwayFromDialog()'s scroll, if any, now that the
+    // dialog it was compensating for is gone -- otherwise the map
+    // would stay scrolled off-cursor until the player moved the
+    // cursor again.
+    columnOriginOverride = -1;
 
     // Either path leaves the screen showing the dialog (or, for the
     // message box, whatever the OS drew over the window); repaint the
