@@ -403,6 +403,73 @@ private bool mapHGeometry(out int charWidth, out int rowRulerWidth,
     return true;
 }
 
+private struct MapCell
+{
+    char ch;
+    SDL_Color colour;
+    bool highlighted;
+}
+
+private MapCell mapCellAppearance(Player* human, int loc,
+    SDL_Color textColour, bool blinkOn)
+{
+    MapCell cell;
+
+    bool moving = (human.mode == mdMOVE && human.usv !is null &&
+        loc == human.usv.loc);
+    if (moving)
+    {
+        if (blinkOn)
+        {
+            cell.ch = typx[human.usv.typ].unichr;
+            cell.colour = playerColour[human.usv.own];
+            cell.highlighted = true;
+        }
+        else
+        {
+            char rch;
+            int rowner;
+            auto kind = revealUnderneath(human.usv, rch, rowner);
+            cell.ch = rch;
+            cell.colour = (kind == RevealKind.terrain)
+                ? (rch == '~' ? COLOUR_SEA : COLOUR_LAND)
+                : (rowner ? playerColour[rowner] : textColour);
+            cell.highlighted = false;
+        }
+        return cell;
+    }
+
+    int v = human.map[loc];
+    switch (v)
+    {
+        case MAPunknown:
+            cell.ch = ' ';
+            cell.colour = textColour;
+            break;
+        case MAPcity:
+            cell.ch = '*';
+            cell.colour = textColour;
+            break;
+        case MAPsea:
+            cell.ch = '~';
+            cell.colour = COLOUR_SEA;
+            break;
+        case MAPland:
+            cell.ch = '+';
+            cell.colour = COLOUR_LAND;
+            break;
+        default:
+            int t = typ[v];
+            cell.ch = (t == X) ? 'O' : typx[t].unichr;
+            cell.colour = playerColour[own[v]];
+            break;
+    }
+
+    cell.highlighted = (loc == human.curloc);
+    return cell;
+}
+
+
 private void drawMap(int lineSkip, SDL_Color textColour)
 {
     Player *human = getHuman();
@@ -451,11 +518,6 @@ private void drawMap(int lineSkip, SDL_Color textColour)
 
     int mapTop = VBUFROWS * lineSkip;
 
-    // The unit being moved, if we're in move mode -- see drawCell()'s
-    // callers below and the blinkOn doc comment above.
-    bool moving = (human.mode == mdMOVE && human.usv !is null);
-    int movingLoc = moving ? human.usv.loc : -1;
-
     long msecsElapsed = MonoTime.currTime.ticks * 1000 / MonoTime.ticksPerSecond;
     bool blinkOn = (msecsElapsed / 500) % 2 == 0;
 
@@ -475,60 +537,10 @@ private void drawMap(int lineSkip, SDL_Color textColour)
             int x = (rowRulerWidth + c) * charWidth;
             int loc = (r0 + r) * (Mcolmx + 1) + (c0 + c);
 
-            // The moving unit's own cell blinks between its own
-            // highlighted image and revealUnderneath()'s answer for
-            // what's underneath it (a city, the ship it's aboard,
-            // etc. -- see maps.d), rather than following the normal
-            // rendering below.
-            if (moving && loc == movingLoc)
-            {
-                if (blinkOn)
-                    drawCell(x, y, charWidth, lineSkip,
-                        typx[human.usv.typ].unichr,
-                        playerColour[human.usv.own], true);
-                else
-                {
-                    char rch; int rowner;
-                    auto kind = revealUnderneath(human.usv, rch, rowner);
-                    SDL_Color rcolour = (kind == RevealKind.terrain)
-                        ? (rch == '~' ? COLOUR_SEA : COLOUR_LAND)
-                        : (rowner ? playerColour[rowner] : textColour);
-                    drawCell(x, y, charWidth, lineSkip, rch, rcolour, false);
-                }
-                continue;
-            }
-
-            int v = human.map[loc];
-            char ch;
-            SDL_Color colour;
-
-            switch (v)
-            {
-                case MAPunknown:
-                    ch = ' ';
-                    colour = textColour;
-                    break;
-                case MAPcity:
-                    ch = '*';		// unowned city
-                    colour = textColour;
-                    break;
-                case MAPsea:
-                    ch = '~';
-                    colour = COLOUR_SEA;
-                    break;
-                case MAPland:
-                    ch = '+';
-                    colour = COLOUR_LAND;
-                    break;
-                default:
-                    int t = typ[v];
-                    ch = (t == X) ? 'O' : typx[t].unichr;
-                    colour = playerColour[own[v]];
-                    break;
-            }
-
-            bool atCursor = (loc == human.curloc);
-            drawCell(x, y, charWidth, lineSkip, ch, colour, atCursor);
+	    MapCell cell =
+	    	mapCellAppearance(human, loc, textColour, blinkOn);
+	    drawCell(x, y, charWidth, lineSkip,
+	    	cell.ch, cell.colour, cell.highlighted);
         }
     }
 
