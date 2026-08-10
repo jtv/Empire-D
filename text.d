@@ -33,6 +33,13 @@ import printf;
 extern (C) void win_flush();
 extern (C) void sound_click();
 
+version (SDL2)
+{
+    // The SDL version frontend owns the input event loop, so TTin() must let
+    // it process events while waiting for a key.
+    extern (C) bool sdlInputWait(int timeout);
+}
+
 enum int VBUFROWS	= 5;
 enum int VBUFCOLS	= 80;
 
@@ -155,7 +162,15 @@ struct Text
 	{
 	    if (c == -1)
 	    {
-		version (Posix)
+		version (SDL2)
+		{
+		    // The SDL frontend has to own the main thread while
+		    // waiting, because SDL event processing and rendering
+		    // must happen there.  Let it wait for SDL events where
+		    // the text versions wait for the input-thread Event.
+		    sdlInputWait(timeout);
+		}
+		else
 		{
 		    keyPressed.wait(dur!"msecs"(timeout));
 		}

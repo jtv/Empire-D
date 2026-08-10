@@ -1087,6 +1087,100 @@ Player *getHuman()
     return Player.get(1);
 }
 
+/*
+ * Process one SDL event and return true if the application should quit.
+ *
+ * This is shared by the normal main loop and sdlInputWait().  The latter
+ * is called from text.d while the game engine is waiting for human input,
+ * so SDL event processing must remain on this thread rather than being
+ * moved into the POSIX input thread used by the text frontends.
+ *
+ * Keyboard events are fed into the same TTunget() channel that the normal
+ * main loop uses.  Resize handling is also kept here so a resize remains
+ * visible while TTin() is waiting.
+ */
+private bool processSDLEvent(ref SDL_Event event, Player *human)
+{
+    if (event.type == SDL_QUIT)
+        return true;
+
+    if (event.type == SDL_KEYDOWN)
+    {
+        SDL_Keysym keysym = event.key.keysym;
+        SDL_Keycode sym = keysym.sym;
+
+        if (sym == SDLK_q &&
+            (keysym.mod & KMOD_CTRL) != 0)
+            return true;
+
+        // Forward ordinary ASCII-range keys straight to the engine,
+        // the way the normal SDL main loop already does.
+        if (sym >= 0 && sym < 128 && human.display)
+            human.display.text.TTunget(cast(int) sym);
+    }
+
+    if (event.type == SDL_WINDOWEVENT &&
+        event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+    {
+        if (human.display)
+        {
+            int newRows, newCols;
+            computeDispSize(newRows, newCols);
+            human.display.setdispsize(newRows, newCols);
+        }
+        win_flush();
+    }
+
+    return false;
+}
+
+/*
+ * Wait for SDL input while TTin() is waiting for a human key.
+ *
+ * This replaces text.d's POSIX keyPressed.wait() for the SDL2 build.
+ * Waiting is done in short intervals so that the next step can use the
+ * timeout wakeups for display-idle work such as the moving-unit blink.
+ *
+ * Returns true if SDL_QUIT or Ctrl-Q was received.  The flag is retained
+ * in the SDL frontend rather than being converted into a game key.
+ */
+extern (C) bool sdlInputWait(int timeout)
+{
+    Player *human = getHuman();
+    int remaining = timeout;
+
+    while (remaining > 0)
+    {
+        int wait = remaining < 50 ? remaining : 50;
+        SDL_Event event;
+
+        if (SDL_WaitEventTimeout(&event, wait) != 0)
+        {
+            if (processSDLEvent(event, human))
+                return true;
+
+            // Drain everything else that arrived with this event.
+            while (SDL_PollEvent(&event) != 0)
+            {
+                if (processSDLEvent(event, human))
+                    return true;
+            }
+        }
+
+        // A key delivered above will wake TTin() through TTunget(), but
+        // TTin() will also check its input buffer after this function
+        // returns.  The 50ms wakeup is intentional: it gives the SDL
+        // frontend a regular idle point without forcing a redraw.
+        remaining -= wait;
+
+        // Don't wait out the remainder once a key has arrived.
+        if (human.display && human.display.text.TTinr() != -1)
+            return false;
+    }
+
+    return false;
+}
+
 int main()
 {
     immutable SDLSupport loaded = loadSDL();
@@ -1185,57 +1279,11 @@ int main()
         // PeekMessage(..., PM_REMOVE).
         while (SDL_PollEvent(&event) != 0)
         {
-	    if (event.type == SDL_QUIT)
+	    if (processSDLEvent(event, human))
 	    {
-	        quit = true;
+		quit = true;
 		break;
 	    }
-
-            if (event.type == SDL_KEYDOWN)
-            {
-		SDL_Keysym keysym = event.key.keysym;
-		SDL_Keycode sym = keysym.sym;
-                if (sym == SDLK_q &&
-                    (keysym.mod & KMOD_CTRL) != 0)
-                {
-                    quit = true;
-                    break;
-                }
-
-                // Forward ordinary ASCII-range keys straight to the
-                // engine, the way winmain.d's WM_CHAR handler does.
-                // TTinr() uppercases on the way out, so case doesn't
-                // matter here. SDL's keycodes for the basic Latin
-                // range equal their ASCII codepoints, which is what
-                // this range check relies on.
-                if (sym >= 0 && sym < 128 && human.display)
-                    human.display.text.TTunget(cast(int) sym);
-            }
-
-            // While the user is dragging an edge, SDL delivers a
-            // steady stream of these instead of running the main loop,
-            // so repaint right here -- otherwise the window shows
-            // stale (or garbage) content until the drag ends. The
-            // renderer's target already tracks the window's pixel
-            // size on its own; win_flush() just needs to be called.
-            //
-            // Also re-run computeDispSize() and feed it to
-            // setdispsize(), the same way textmain.d's termResized()
-            // dance keeps Text.Tmax/Display.Smax matching the real
-            // terminal size -- otherwise a resize (typically growing
-            // the window) leaves the engine's cursor-placement bounds
-            // stuck at whatever they were at startup.
-            if (event.type == SDL_WINDOWEVENT &&
-                event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
-            {
-                if (human.display)
-                {
-                    int newRows, newCols;
-                    computeDispSize(newRows, newCols);
-                    human.display.setdispsize(newRows, newCols);
-                }
-                win_flush();
-            }
         }
 
         if (quit)
@@ -1247,6 +1295,9 @@ int main()
         // avoid pegging the CPU, same as textmain.d's loop.
         if (slice() != 0)
             break;
+
+	// sdlInputWait() may have received a quit request while slice()
+	// was waiting for input; the next loop iteration handles it.
     }
 
     return 0;
