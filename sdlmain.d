@@ -84,6 +84,10 @@ enum int DEFAULT_COLS = 80;
 // that set them.
 private __gshared SDL_Renderer* renderer;
 private __gshared SDL_Window* mainWindow;
+private __gshared SDL_Texture* frameTexture;
+private __gshared int frameTextureWidth;
+private __gshared int frameTextureHeight;
+private __gshared bool blinkOn;
 
 // Set once in main(), after trying openMonoFont()'s candidate paths;
 // stays null (and win_flush() just skips the text) if none of them
@@ -302,6 +306,37 @@ private void clearGlyphCache()
     glyphCache.clear();
 }
 
+private bool ensureFrameTexture()
+{
+    int width, height;
+    SDL_GetRendererOutputSize(renderer, &width, &height);
+    if (width <= 0 || height <= 0)
+        return false;
+
+    if (frameTexture !is null &&
+        frameTextureWidth == width && frameTextureHeight == height)
+        return true;
+
+    if (frameTexture !is null)
+    {
+        SDL_DestroyTexture(frameTexture);
+        frameTexture = null;
+    }
+
+    frameTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
+        SDL_TEXTUREACCESS_TARGET, width, height);
+    if (frameTexture is null)
+    {
+        frameTextureWidth = frameTextureHeight = 0;
+        return false;
+    }
+
+    frameTextureWidth = width;
+    frameTextureHeight = height;
+    return true;
+}
+
+
 /*
  * Draw one map cell's glyph at the given screen position, in colour,
  * with an optional reverse-video style highlight (used for the cursor
@@ -344,31 +379,6 @@ private void drawCell(int x, int y, int cellWidth, int cellHeight,
     SDL_RenderCopy(renderer, texture, null, &dst);
 }
 
-/*
- * Render the human player's known map, and its horizontal/vertical
- * rulers, below the vbuffer text area -- the SDL2 counterpart to
- * textmain.d's drawPlayerMapNcurses(). The viewport sizing, centring
- * on the cursor, and ruler placement all mirror that function
- * exactly; only the pixel-vs-character-cell bookkeeping and the
- * colour representation (RGB SDL_Color instead of an ncurses colour
- * pair) differ, since there's no character grid to work with here.
- *
- * Each map cell is shown as a single character -- var.d's typx[].unichr
- * for units, 'O' for an owned city, '*' for an unowned one, '~' for
- * sea, '+' for land, and a blank for still-unexplored territory. This
- * only reflects what the player actually knows (human.map, the
- * fog-of-war copy of the reference map), not the true state of the
- * whole board.
- *
- * One difference from drawPlayerMapNcurses(): that function's "blink"
- * for a unit in move mode is driven by textmain.d's main loop toggling
- * a shared blinkOn flag on a wall-clock timer, forcing a redraw every
- * 500ms even when nothing else changed. sdlmain.d's main loop has no
- * such timer yet (TODO), so blinkOn here is instead derived directly
- * from MonoTime on every call -- it'll show the right phase whenever a
- * redraw does happen, but (unlike the ncurses version) won't animate
- * on its own while the display is otherwise idle.
- */
 /*
  * Horizontal geometry of the map viewport, in character cells, for
  * the window's current size: how wide a cell is, how many columns
@@ -522,9 +532,6 @@ private void drawMap(int lineSkip, SDL_Color textColour)
 
     int mapTop = VBUFROWS * lineSkip;
 
-    long msecsElapsed = MonoTime.currTime.ticks * 1000 / MonoTime.ticksPerSecond;
-    bool blinkOn = (msecsElapsed / 500) % 2 == 0;
-
     if (rowRulerWidth)
     {
         foreach (r; 0 .. terrainRows)
@@ -553,6 +560,87 @@ private void drawMap(int lineSkip, SDL_Color textColour)
             toStringz(rulerLine(c0, terrainCols)), textColour);
 }
 
+private bool blinkPhase()
+{
+    long msecsElapsed =
+        MonoTime.currTime.ticks * 1000 / MonoTime.ticksPerSecond;
+    return (msecsElapsed / 500) % 2 == 0;
+}
+private void redrawMovingUnit(Player *human)
+{
+    if (frameTexture is null || font is null || human is null ||
+        human.display is null || human.mode != mdMOVE || human.usv is null)
+        return;
+
+    int lineSkip = TTF_FontLineSkip(font);
+    int charWidth, rowRulerWidth, terrainCols;
+    if (lineSkip <= 0 ||
+        !mapHGeometry(charWidth, rowRulerWidth, terrainCols))
+        return;
+
+    int pixelWidth, pixelHeight;
+    SDL_GetRendererOutputSize(renderer, &pixelWidth, &pixelHeight);
+    int availRows = pixelHeight / lineSkip - VBUFROWS;
+    if (availRows <= 0)
+        return;
+
+    int mapRows = (availRows < Mrowmx + 1) ? availRows : Mrowmx + 1;
+    int terrainRows = mapRows >= 2 ? mapRows - 1 : mapRows;
+    if (terrainRows <= 0)
+        return;
+
+    int r0 = ROW(human.curloc) - terrainRows / 2;
+    if (r0 < 0) r0 = 0;
+    if (r0 > Mrowmx + 1 - terrainRows)
+        r0 = Mrowmx + 1 - terrainRows;
+
+    int c0 = (columnOriginOverride >= 0)
+        ? columnOriginOverride
+        : COL(human.curloc) - terrainCols / 2;
+    if (c0 < 0) c0 = 0;
+    if (c0 > Mcolmx + 1 - terrainCols)
+        c0 = Mcolmx + 1 - terrainCols;
+
+    int movingRow = ROW(human.usv.loc);
+    int movingCol = COL(human.usv.loc);
+    if (movingRow < r0 || movingRow >= r0 + terrainRows ||
+        movingCol < c0 || movingCol >= c0 + terrainCols)
+        return;
+
+    int x = (rowRulerWidth + movingCol - c0) * charWidth;
+    int y = VBUFROWS * lineSkip + (movingRow - r0) * lineSkip;
+
+    MapCell cell = mapCellAppearance(human, human.usv.loc,
+        COLOUR_WHITE, blinkOn);
+    SDL_SetRenderTarget(renderer, frameTexture);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_Rect rect = SDL_Rect(x, y, charWidth, lineSkip);
+    SDL_RenderFillRect(renderer, &rect);
+    drawCell(x, y, charWidth, lineSkip, cell.ch, cell.colour,
+        cell.highlighted);
+    SDL_SetRenderTarget(renderer, null);
+    SDL_RenderCopy(renderer, frameTexture, null, null);
+    SDL_RenderPresent(renderer);
+}
+private void updateMovingUnitBlink(Player *human)
+{
+    bool phase = blinkPhase();
+    if (phase == blinkOn)
+        return;
+
+    blinkOn = phase;
+    if (font !is null && human !is null && human.mode == mdMOVE &&
+        human.usv !is null)
+    {
+        if (!ensureFrameTexture())
+        {
+            win_flush();
+            return;
+        }
+        redrawMovingUnit(human);
+    }
+}
+
 
 /*
  * text.d calls these two hooks (declared extern(C) there, with no
@@ -564,6 +652,12 @@ extern (C) void win_flush()
 {
     if (renderer is null)
         return;
+
+    bool haveFrameTexture = ensureFrameTexture();
+    if (haveFrameTexture)
+        SDL_SetRenderTarget(renderer, frameTexture);
+
+    blinkOn = blinkPhase();
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
@@ -590,6 +684,11 @@ extern (C) void win_flush()
 	drawMap(lineSkip, white);
     }
 
+    if (haveFrameTexture)
+    {
+        SDL_SetRenderTarget(renderer, null);
+        SDL_RenderCopy(renderer, frameTexture, null, null);
+    }
     SDL_RenderPresent(renderer);
 }
 
@@ -1176,8 +1275,9 @@ extern (C) bool sdlInputWait(int timeout)
 
         // A key delivered above will wake TTin() through TTunget(), but
         // TTin() will also check its input buffer after this function
-        // returns.  The 50ms wakeup is intentional: it gives the SDL
-        // frontend a regular idle point without forcing a redraw.
+        // returns.  The 50ms wakeup is intentional: it also gives the SDL
+        // frontend a regular idle point for the moving-unit blink.
+	updateMovingUnitBlink(human);
         remaining -= wait;
     }
 
@@ -1214,7 +1314,8 @@ int main()
 
     mainWindow = window;
 
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    renderer = SDL_CreateRenderer(window, -1,
+    	SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);
     if (renderer is null)
     {
         stderr.writefln("SDL_CreateRenderer failed: %s", SDL_GetError().fromStringz);
@@ -1222,6 +1323,11 @@ int main()
     }
     scope (exit)
         SDL_DestroyRenderer(renderer);
+    scope (exit)
+    {
+	if (frameTexture !is null)
+	    SDL_DestroyTexture(frameTexture);
+    }
     scope (exit)
     	clearGlyphCache();
 
@@ -1291,6 +1397,8 @@ int main()
         // avoid pegging the CPU, same as textmain.d's loop.
         if (slice() != 0)
             break;
+
+	updateMovingUnitBlink(human);
 
 	// sdlInputWait() may have received a quit request while slice()
 	// was waiting for input; the next loop iteration handles it.
