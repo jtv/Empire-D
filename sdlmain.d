@@ -1172,10 +1172,6 @@ extern (C) bool sdlInputWait(int timeout)
         // returns.  The 50ms wakeup is intentional: it gives the SDL
         // frontend a regular idle point without forcing a redraw.
         remaining -= wait;
-
-        // Don't wait out the remainder once a key has arrived.
-        if (human.display && human.display.text.TTinr() != -1)
-            return false;
     }
 
     return false;
