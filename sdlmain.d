@@ -50,6 +50,7 @@ import std.stdio : stderr, writeln, writefln;
 import std.string : toStringz, fromStringz;
 import std.format : format;
 import std.math : abs;
+import std.getopt : getopt, defaultGetoptPrinter;
 
 import core.stdc.time : time;
 import core.time : MonoTime;
@@ -57,7 +58,7 @@ import core.time : MonoTime;
 import empire : DAtty, MTterm, setran, TYPMAX, Mrowmx, Mcolmx, ROW, COL,
     X, MAPunknown, MAPcity, MAPsea, MAPland, mdMOVE, mdSURV, mdDIR, mdTO,
     loc_t;
-import init : gameSetup;
+import init : gameSetup, gameRestore;
 import move : slice;
 import eplayer : Player;
 import display : Display;
@@ -1345,8 +1346,20 @@ extern (C) bool sdlInputWait(int timeout)
     return false;
 }
 
-int main()
+int main(string[] args)
 {
+    string loadFile;
+
+    auto helpInfo = getopt(args,
+        "load|l", "Load a previously saved game from FILE.", &loadFile);
+    if (helpInfo.helpWanted)
+    {
+	defaultGetoptPrinter("Empire (SDL2 frontend)\n\n" ~
+	    "Usage: empire-sdl [--load=FILE]\n",
+	    helpInfo.options);
+	return 0;
+    }
+
     immutable SDLSupport loaded = loadSDL();
     if (loaded != sdlSupport)
     {
@@ -1432,7 +1445,20 @@ int main()
     // doc comment for why.
     int rows, cols;
     computeDispSize(rows, cols);
-    gameSetup(NUMPLY, false, DAtty, MTterm, rows, cols);
+
+    if (loadFile.length)
+    {
+	if (gameRestore(toStringz(loadFile), DAtty, MTterm, rows, cols))
+	{
+	    stderr.writeln("empire: could not load saved game from '" ~
+		loadFile ~ "'");
+	    return 1;
+	}
+    }
+    else
+    {
+	gameSetup(NUMPLY, false, DAtty, MTterm, rows, cols);
+    }
 
     Player *human = getHuman();
     if (human.display)
