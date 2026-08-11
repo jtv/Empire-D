@@ -118,10 +118,9 @@ private __gshared int mapColBias = 0;
 // the rest of this module's __gshared state.
 private __gshared int columnOriginOverride = -1;
 
-// Set when SDL_QUIT or Ctrl-Q is received while the engine is blocked in
-// TTin() via sdlInputWait().  Checked by the main loop after slice_()
-// returns.
-private __gshared bool pendingQuit = false;
+// User wants to exit the game.  Can be set in several places and conditions:
+// On ctrl-Q, on clicking the window's close widget, perhaps others.
+private __gshared bool quit = false;
 
 // Candidate monospace font files to try, in order, until one opens.
 // This repo doesn't bundle a font (c.f. dub.sdl's gui-sdl2 comment on
@@ -1093,7 +1092,7 @@ Player *getHuman()
 }
 
 /*
- * Process one SDL event and return true if the application should quit.
+ * Process one SDL event.  Set `quit` if that's what the user requested.
  *
  * This is shared by the normal main loop and sdlInputWait().  The latter
  * is called from text.d while the game engine is waiting for human input,
@@ -1104,10 +1103,13 @@ Player *getHuman()
  * main loop uses.  Resize handling is also kept here so a resize remains
  * visible while TTin() is waiting.
  */
-private bool processSDLEvent(ref SDL_Event event, Player *human)
+private void processSDLEvent(ref SDL_Event event, Player *human)
 {
     if (event.type == SDL_QUIT)
-        return true;
+    {
+	quit = true;
+        return;
+    }
 
     if (event.type == SDL_KEYDOWN)
     {
@@ -1116,7 +1118,10 @@ private bool processSDLEvent(ref SDL_Event event, Player *human)
 
         if (sym == SDLK_q &&
             (keysym.mod & KMOD_CTRL) != 0)
-            return true;
+	{
+	    quit = true;
+            return;
+	}
 
         // Forward ordinary ASCII-range keys straight to the engine,
         // the way the normal SDL main loop already does.
@@ -1135,8 +1140,6 @@ private bool processSDLEvent(ref SDL_Event event, Player *human)
         }
         win_flush();
     }
-
-    return false;
 }
 
 /*
@@ -1161,21 +1164,14 @@ extern (C) bool sdlInputWait(int timeout)
 
         if (SDL_WaitEventTimeout(&event, wait) != 0)
         {
-            if (processSDLEvent(event, human))
-	    {
-		pendingQuit = true;
-                return true;
-	    }
+            processSDLEvent(event, human);
 
             // Drain everything else that arrived with this event.
-            while (SDL_PollEvent(&event) != 0)
-            {
-                if (processSDLEvent(event, human))
-		{
-		    pendingQuit = true;
-                    return true;
-		}
-            }
+            while (!quit && (SDL_PollEvent(&event) != 0))
+                processSDLEvent(event, human);
+
+	    if (quit)
+	    	return true;
         }
 
         // A key delivered above will wake TTin() through TTunget(), but
@@ -1275,7 +1271,6 @@ int main()
     if (human.display)
         human.display.text.flush();
 
-    bool quit = false;
     while (!quit)
     {
 	SDL_Event event;
@@ -1284,14 +1279,8 @@ int main()
         // winmain.d's PeekMessage loop drains messages before calling
         // slice() on idle -- SDL_PollEvent is non-blocking, same as
         // PeekMessage(..., PM_REMOVE).
-        while (SDL_PollEvent(&event) != 0)
-        {
-	    if (processSDLEvent(event, human))
-	    {
-		quit = true;
-		break;
-	    }
-        }
+        while (!quit && (SDL_PollEvent(&event) != 0))
+	    processSDLEvent(event, human);
 
         if (quit)
             break;
@@ -1302,9 +1291,6 @@ int main()
         // avoid pegging the CPU, same as textmain.d's loop.
         if (slice() != 0)
             break;
-
-	if (pendingQuit)
-	    break;
 
 	// sdlInputWait() may have received a quit request while slice()
 	// was waiting for input; the next loop iteration handles it.
