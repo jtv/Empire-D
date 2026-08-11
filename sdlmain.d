@@ -55,7 +55,8 @@ import core.stdc.time : time;
 import core.time : MonoTime;
 
 import empire : DAtty, MTterm, setran, TYPMAX, Mrowmx, Mcolmx, ROW, COL,
-    X, MAPunknown, MAPcity, MAPsea, MAPland, mdMOVE;
+    X, MAPunknown, MAPcity, MAPsea, MAPland, mdMOVE, mdSURV, mdDIR, mdTO,
+    loc_t;
 import init : gameSetup;
 import move : slice;
 import eplayer : Player;
@@ -125,6 +126,48 @@ private __gshared int columnOriginOverride = -1;
 // User wants to exit the game.  Can be set in several places and conditions:
 // On ctrl-Q, on clicking the window's close widget, perhaps others.
 private __gshared bool quit = false;
+
+// Last-seen cursor location while in Survey/From/To mode, so
+// forceRedrawForCursorModes() (called every main-loop iteration) can
+// tell whether the cursor has moved and a redraw is actually needed.
+// loc_t.max is used as an "unset" sentinel, same as textmain.d's own
+// lastSurveyLoc, so re-entering one of these modes always redraws at
+// least once even if curloc happens to match wherever it was the
+// previous time.
+private __gshared loc_t lastCursorModeLoc = loc_t.max;
+
+/*
+ * text.d's flush() only calls win_flush() when human.display.text.
+ * anychanges is set, which happens when something is printed to the
+ * message area -- not when the player merely moves the cursor over
+ * plain terrain. In Survey/From/To mode that's most keypresses, so
+ * without this the cyan cursor highlight in mapCellAppearance() would
+ * be computed correctly but never actually get drawn: win_flush()
+ * just wouldn't run. textmain.d's main loop has this same check
+ * inline; this is the SDL frontend's equivalent, called once per
+ * iteration of main()'s event loop.
+ */
+private void forceRedrawForCursorModes(Player *human)
+{
+    if (human is null || human.display is null)
+        return;
+
+    if (human.mode == mdSURV || human.mode == mdDIR || human.mode == mdTO)
+    {
+        if (human.curloc != lastCursorModeLoc)
+        {
+            lastCursorModeLoc = human.curloc;
+            human.display.text.anychanges = 1;
+            human.display.text.flush();
+        }
+    }
+    else
+    {
+        // Not in one of these modes -- reset so re-entering always
+        // redraws at least once.
+        lastCursorModeLoc = loc_t.max;
+    }
+}
 
 // Candidate monospace font files to try, in order, until one opens.
 // This repo doesn't bundle a font (c.f. dub.sdl's gui-sdl2 comment on
@@ -213,6 +256,12 @@ private immutable SDL_Color COLOUR_BLACK = SDL_Color(0, 0, 0, 255);
 private immutable SDL_Color COLOUR_WHITE = SDL_Color(255, 255, 255, 255);
 private immutable SDL_Color COLOUR_SEA   = SDL_Color(0, 0, 170, 255);
 private immutable SDL_Color COLOUR_LAND  = SDL_Color(0, 170, 0, 255);
+
+// Background for the cursor cell in Survey/From/To mode -- the SDL
+// equivalent of textmain.d's cyanBg ("\033[46m"), used there instead
+// of plain reverse video while the player's picking a survey target
+// or a move's source/destination.
+private immutable SDL_Color COLOUR_CYAN  = SDL_Color(0, 170, 170, 255);
 private immutable SDL_Color[7] playerColour = [
     COLOUR_WHITE,				// no player 0 (unused)
     SDL_Color(255, 85, 85, 255),		// player 1: red
@@ -340,24 +389,31 @@ private bool ensureFrameTexture()
 /*
  * Draw one map cell's glyph at the given screen position, in colour,
  * with an optional reverse-video style highlight (used for the cursor
- * cell) -- the SDL equivalent of the ncurses version's color_set()
- * plus attron(A_REVERSE)/attroff(A_REVERSE) around mvaddch(). SDL has
- * no terminal-style "reverse video" attribute, so it's faked here:
- * fill the cell with its own colour, then draw the glyph over that in
- * the background colour instead of drawing the glyph in its colour
- * over the (already black) background.
+ * cell outside Survey/From/To mode) -- the SDL equivalent of the
+ * ncurses version's color_set() plus attron(A_REVERSE)/
+ * attroff(A_REVERSE) around mvaddch(). SDL has no terminal-style
+ * "reverse video" attribute, so it's faked here: fill the cell with
+ * its own colour, then draw the glyph over that in the background
+ * colour instead of drawing the glyph in its colour over the
+ * (already black) background.
+ *
+ * cyanHighlight is the alternative cursor style textmain.d uses for
+ * Survey/From/To mode (its cyanBg): the cell gets a flat cyan
+ * background instead, and the glyph keeps its normal colour rather
+ * than switching to black.
  */
 private void drawCell(int x, int y, int cellWidth, int cellHeight,
-    char ch, SDL_Color colour, bool highlighted)
+    char ch, SDL_Color colour, bool highlighted, bool cyanHighlight = false)
 {
-    if (highlighted)
+    if (highlighted || cyanHighlight)
     {
         SDL_Rect rect;
         rect.x = x;
         rect.y = y;
         rect.w = cellWidth;
         rect.h = cellHeight;
-        SDL_SetRenderDrawColor(renderer, colour.r, colour.g, colour.b, 255);
+        SDL_Color bg = cyanHighlight ? COLOUR_CYAN : colour;
+        SDL_SetRenderDrawColor(renderer, bg.r, bg.g, bg.b, 255);
         SDL_RenderFillRect(renderer, &rect);
     }
 
@@ -422,6 +478,7 @@ private struct MapCell
     char ch;
     SDL_Color colour;
     bool highlighted;
+    bool cyanHighlight;	// Survey/From/To mode cursor -- see drawCell().
 }
 
 private MapCell mapCellAppearance(Player* human, int loc,
@@ -479,7 +536,11 @@ private MapCell mapCellAppearance(Player* human, int loc,
             break;
     }
 
-    cell.highlighted = (loc == human.curloc);
+    bool atCursor = (loc == human.curloc);
+    bool cyanMode = (human.mode == mdSURV || human.mode == mdDIR ||
+        human.mode == mdTO);
+    cell.highlighted = atCursor && !cyanMode;
+    cell.cyanHighlight = atCursor && cyanMode;
     return cell;
 }
 
@@ -551,7 +612,7 @@ private void drawMap(int lineSkip, SDL_Color textColour)
 	    MapCell cell =
 	    	mapCellAppearance(human, loc, textColour, blinkOn);
 	    drawCell(x, y, charWidth, lineSkip,
-	    	cell.ch, cell.colour, cell.highlighted);
+	    	cell.ch, cell.colour, cell.highlighted, cell.cyanHighlight);
         }
     }
 
@@ -1398,6 +1459,7 @@ int main()
         if (slice() != 0)
             break;
 
+	forceRedrawForCursorModes(human);
 	updateMovingUnitBlink(human);
 
 	// sdlInputWait() may have received a quit request while slice()
