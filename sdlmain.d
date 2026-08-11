@@ -118,6 +118,11 @@ private __gshared int mapColBias = 0;
 // the rest of this module's __gshared state.
 private __gshared int columnOriginOverride = -1;
 
+// Set when SDL_QUIT or Ctrl-Q is received while the engine is blocked in
+// TTin() via sdlInputWait().  Checked by the main loop after slice_()
+// returns.
+private __gshared bool pendingQuit = false;
+
 // Candidate monospace font files to try, in order, until one opens.
 // This repo doesn't bundle a font (c.f. dub.sdl's gui-sdl2 comment on
 // libSDL2 itself needing to already be on the target system -- same
@@ -1157,13 +1162,19 @@ extern (C) bool sdlInputWait(int timeout)
         if (SDL_WaitEventTimeout(&event, wait) != 0)
         {
             if (processSDLEvent(event, human))
+	    {
+		pendingQuit = true;
                 return true;
+	    }
 
             // Drain everything else that arrived with this event.
             while (SDL_PollEvent(&event) != 0)
             {
                 if (processSDLEvent(event, human))
+		{
+		    pendingQuit = true;
                     return true;
+		}
             }
         }
 
@@ -1291,6 +1302,9 @@ int main()
         // avoid pegging the CPU, same as textmain.d's loop.
         if (slice() != 0)
             break;
+
+	if (pendingQuit)
+	    break;
 
 	// sdlInputWait() may have received a quit request while slice()
 	// was waiting for input; the next loop iteration handles it.
