@@ -1127,6 +1127,17 @@ private int dialogModalCitySelect(int oldphase, in CityDialogLayout layout)
             case SDL_KEYDOWN:
             {
                 SDL_Keycode sym = event.key.keysym.sym;
+                if (sym == SDLK_q && (event.key.keysym.mod & KMOD_CTRL) != 0)
+                {
+                    // Same handling as SDL_QUIT above: push a quit event
+                    // and let the main loop see it and shut down normally
+                    // once this function returns, rather than acting on
+                    // it here.
+                    SDL_Event quitEvent;
+                    quitEvent.type = SDL_QUIT;
+                    SDL_PushEvent(&quitEvent);
+                    return oldphase;
+                }
                 if (sym == SDLK_ESCAPE)
                     return oldphase;
                 if (sym == SDLK_RETURN || sym == SDLK_KP_ENTER)
