@@ -1493,8 +1493,17 @@ int main(string[] args)
         // when it's the human's turn and no key is queued yet -- see
         // text.d's TTin() -- so this doesn't need its own delay/cap to
         // avoid pegging the CPU, same as textmain.d's loop.
+	bool wasMoving = human.mode == mdMOVE;
         if (slice() != 0)
             break;
+
+	// slice() can finish an attack by leaving mdMOVE while the last
+	// frame still has the moving unit's blink state drawn in its
+	// "background" form.  Rebuild the frame once when transitioning
+	// out of move mode, so a surviving attacker is drawn properly from
+	// human.map.
+	if (wasMoving && human.mode != mdMOVE)
+	    win_flush();
 
 	forceRedrawForCursorModes(human);
 	updateMovingUnitBlink(human);
