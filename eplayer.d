@@ -1078,15 +1078,50 @@ struct Player
 
     int cmdL(Unit *u)
     {   int type,ab;
+      int r;
       Player *p = &this;
 
       ab = .map[p.curloc];
       if (own[ab] == p.num &&		// if we own the unit and
 	    (typ[ab] == T || typ[ab] == C))	// it's a transport or carrier
-	    return p.mycmod(u,fnFI,0);	// put in fill mode
+      {   r = p.mycmod(u,fnFI,0);	// put in fill mode
+	    // Wake up any armies (or fighters) sitting right next to us,
+	    // and send them our way instead of leaving them to be moved
+	    // aboard by hand.
+	    p.wakeCargoLTR(p.curloc,(typ[ab] == T) ? A : F);
+	    return r;
+      }
 
       cmderror();
       return false;
+    }
+
+
+    /***********************************
+     * Wake up armies (or fighters) in the fields immediately adjacent
+     * to loc, and order each of them to move onto the T (or C) sitting
+     * at loc. Called when a transport/carrier is put into Load (fnFI)
+     * mode.
+     * Input:
+     *	loc	location of the T or C going into load mode
+     *	type	A or F: the type of unit to collect
+     */
+
+    void wakeCargoLTR(loc_t loc,int type)
+    {   int d,z6,ab;
+      Unit *ua;
+      Player *p = &this;
+
+      assert(chkloc(loc));
+      for (d = 8; d--;)		// loop thru directions
+      {   z6 = loc + arrow(d);	// adjacent location
+	    ab = .map[z6];
+	    if (typ[ab] != type || own[ab] != p.num)
+		continue;		// nothing of ours there
+	    ua = fnduni(z6);		// find the unit
+	    ua.ifo = cast(ubyte) fnMO;	// order it to move...
+	    ua.ila = loc;		// ...onto the T/C
+      }
     }
 
 
