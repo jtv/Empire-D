@@ -437,6 +437,35 @@ private void drawCell(int x, int y, int cellWidth, int cellHeight,
 }
 
 /*
+ * How many character cells are available for map terrain along one
+ * axis (columns or rows), given the total cells available in the
+ * window and the fixed-size ruler this viewport reserves along that
+ * axis: reserve the ruler's cells first, then clamp what's left to
+ * the map's own size along that axis.
+ *
+ * Clamping the ruler+terrain total to the map's size *before*
+ * subtracting the ruler -- which four separate call sites here used
+ * to do inline, one of them (redrawMovingUnit()) still doing it as of
+ * this writing -- is wrong: it shorts the terrain by the ruler's size
+ * for any window big enough to show the whole map, permanently hiding
+ * the map's rightmost columns or bottom row no matter how big the
+ * window gets. Pulled out into one function so that class of bug (and
+ * any fix to it) only has to happen once.
+ *
+ * rulerCells is the number of cells the ruler takes up along this
+ * axis (0 if there's no room for one, as the caller decides).
+ * mapCells is the map's own size along this axis (Mcolmx + 1 for
+ * columns, Mrowmx + 1 for rows).
+ */
+private int clampTerrainCells(int availCells, int rulerCells, int mapCells)
+{
+    int terrainCells = availCells - rulerCells;
+    if (terrainCells > mapCells)
+        terrainCells = mapCells;
+    return terrainCells;
+}
+
+/*
  * Horizontal geometry of the map viewport, in character cells, for
  * the window's current size: how wide a cell is, how many columns
  * the row ruler takes up, and how many columns of terrain are left
@@ -464,13 +493,11 @@ private bool mapHGeometry(out int charWidth, out int rowRulerWidth,
     if (availCols <= 0)
         return false;
 
-    int mapCols = (availCols < Mcolmx + 1) ? availCols : Mcolmx + 1;
-
     // The row ruler takes over the left ROW_RULER_WIDTH columns from
     // the terrain, same as drawMap()'s showRuler does with its bottom
     // row.
-    rowRulerWidth = (mapCols > ROW_RULER_WIDTH) ? ROW_RULER_WIDTH : 0;
-    terrainCols = mapCols - rowRulerWidth;
+    rowRulerWidth = (availCols > ROW_RULER_WIDTH) ? ROW_RULER_WIDTH : 0;
+    terrainCols = clampTerrainCells(availCols, rowRulerWidth, Mcolmx + 1);
     return true;
 }
 
@@ -565,13 +592,12 @@ private void drawMap(int lineSkip, SDL_Color textColour)
     if (availRows <= 0)
         return;			// window too small to bother
 
-    int mapRows = (availRows < Mrowmx + 1) ? availRows : Mrowmx + 1;
-
     // The bottom row of the viewport is the column ruler, not
     // terrain, as long as there's room for at least one terrain row
     // above it -- same condition drawPlayerMapNcurses() uses.
-    bool showRuler = mapRows >= 2;
-    int terrainRows = showRuler ? mapRows - 1 : mapRows;
+    bool showRuler = availRows >= 2;
+    int terrainRows = clampTerrainCells(availRows, showRuler ? 1 : 0,
+        Mrowmx + 1);
 
     // Centre the viewport on the player's cursor, clamped to the map.
     // Clamp against terrainRows/terrainCols, not mapRows/mapCols: the
@@ -646,8 +672,8 @@ private void redrawMovingUnit(Player *human)
     if (availRows <= 0)
         return;
 
-    int mapRows = (availRows < Mrowmx + 1) ? availRows : Mrowmx + 1;
-    int terrainRows = mapRows >= 2 ? mapRows - 1 : mapRows;
+    int terrainRows = clampTerrainCells(availRows, availRows >= 2 ? 1 : 0,
+        Mrowmx + 1);
     if (terrainRows <= 0)
         return;
 
@@ -915,9 +941,9 @@ private void scrollMapAwayFromDialog(in CityDialogLayout layout)
     if (availRows <= 0 || availCols <= 0)
         return;
 
-    int mapCols = (availCols < Mcolmx + 1) ? availCols : Mcolmx + 1;
-    int rowRulerWidth = (mapCols > ROW_RULER_WIDTH) ? ROW_RULER_WIDTH : 0;
-    int terrainCols = mapCols - rowRulerWidth;
+    // See mapHGeometry()'s matching fix.
+    int rowRulerWidth = (availCols > ROW_RULER_WIDTH) ? ROW_RULER_WIDTH : 0;
+    int terrainCols = clampTerrainCells(availCols, rowRulerWidth, Mcolmx + 1);
     if (terrainCols <= 0)
         return;
 
