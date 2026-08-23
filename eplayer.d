@@ -366,6 +366,18 @@ struct Player
 		(type >= D && ac != MAPsea))
 	    {   eomove(u.loc);		// sensor probe of loc we attacked
 		u.loc = locold;		// stay put, don't move in
+		switch (type)
+		{
+		case T, C, D, S, R, B:
+		    if (!p.turns && u.hit > typx[type].hittab / 2)
+		    {
+			p.turns++;
+			return true;
+		    }
+		    break;
+		default:
+		    break;
+		}
 		return false;		// all done
 	    }
       }
