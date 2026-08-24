@@ -752,7 +752,12 @@ struct Player
       {   if (p.curloc == oldloc)	// if bad direction command
 		goto cmderr;		// then error
 	    if (p.mode == mdMOVE)		// if in move mode
-	    {   if (!p.seeifok(u,*pr2))		// if move is destructive
+	    {   if (p.nonArmyAttackingCity(u,*pr2))
+		{   p.curloc = u.loc;		// reset cursor to unit location
+		    p.cantstormcity();		// show error message
+		    goto cmdscn;		// give him another chance
+		}
+		if (!p.seeifok(u,*pr2))		// if move is destructive
 		{   p.curloc = u.loc;		// reset cursor to unit location
 		    p.cantmovehere();		// show error message
 		    goto cmdscn;		// give him another chance
@@ -1325,6 +1330,40 @@ struct Player
     }
 
 
+    /*****************************
+     * Unit was ordered to attack a city, but only armies can do that.
+     */
+
+    void cantstormcity()
+    {
+	Text *t = &display.text;
+	t.bell();
+	t.cmes(t.DS(3),"Only an army can storm a city.\1\2");
+    }
+
+
+    /*****************************
+     * Is u being ordered to attack (move onto) a city it doesn't own?
+     * If so, only an army is allowed to do that.
+     * Returns:
+     *	true	if this is an illegal non-army attack on a city
+     */
+
+    bool nonArmyAttackingCity(Unit *u,dir_t r2)
+    {
+	loc_t z6;
+	int ac;
+
+	if (r2 == -1)			// not moving anywhere
+	    return false;
+	if (u.typ == A)			// armies are always allowed
+	    return false;
+	z6 = u.loc + arrow(r2);		// where we're headed
+	ac = .map[z6];
+	return typ[ac] == X && own[ac] != this.num;
+    }
+
+
     /*******************************
      * Type out information on what we're sitting on.
      * Input:
@@ -1424,7 +1463,8 @@ struct Player
 	    return true;			// it's enemy
       }
       if (typ[ac] == X)
-	    return own[ac] != p.num || (canMoveInto(u, ac) && !aboard(u));
+	    return (own[ac] != p.num && type == A) ||
+		    (canMoveInto(u, ac) && !aboard(u));
       if (ac == MAPsea)
             return canMoveInto(u, ac) ||
 	    	(typ[ab] == T && type == A && !typx[type].onsea);
