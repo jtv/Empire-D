@@ -362,9 +362,7 @@ struct Player
 	     * the attacker where it started.
 	     */
 
-	    if ((ac == MAPsea && !typx[type].onsea) ||
-		(ac == MAPland && !typx[type].onland) ||
-		(ac == MAPcity && !typx[type].oncity))
+	    if (!canMoveInto(u, ac))
 	    {   eomove(u.loc);		// sensor probe of loc we attacked
 		u.loc = locold;		// stay put, don't move in
 		// Continue below so a ship that attacked an army can still
@@ -1381,6 +1379,21 @@ struct Player
     }
 
     /**********************************
+     * Can this type of unit move into this type of square?
+     */
+    bool canMoveInto(Unit *u, int cell)
+    {
+	int type = u.typ;
+	if (cell == MAPsea)
+	    return typx[type].onsea;
+	if (cell == MAPland)
+	    return typx[type].onland;
+	if (typ[cell] == X)
+	    return typx[type].oncity;
+	return false;
+    }
+
+    /**********************************
      * Given a unit number and a trial move, see if it's ok.
      * Note it's ok to attack enemy pieces (even ships against armies!).
      * Watch out for case with r2 == -1 (stay in place)!
@@ -1411,12 +1424,12 @@ struct Player
 	    return true;			// it's enemy
       }
       if (typ[ac] == X)
-	    return own[ac] != p.num || (typx[type].oncity && !aboard(u));
+	    return own[ac] != p.num || (canMoveInto(u, ac) && !aboard(u));
       if (ac == MAPsea)
-            return typx[type].onsea ||
+            return canMoveInto(u, ac) ||
 	    	(typ[ab] == T && type == A && !typx[type].onsea);
       if (ac == MAPland)
-            return typx[type].onland;
+            return canMoveInto(u, ac);
       if (typ[ac] == T && type == A)
             return !full(fnduni(z6));
       if (typ[ac] == C && type == F)
@@ -1541,16 +1554,14 @@ struct Player
       targetCell = .map[targetloc];	// see what's at the target location
       type = u.typ;			// what's our unit type?
 
-      if (targetCell == MAPsea)
-          return typx[type].onsea;
-      if (targetCell == MAPland)
-          return typx[type].onland;
+      if (targetCell == MAPsea || targetCell == MAPland)
+          return canMoveInto(u, targetCell);
       if (typ[targetCell] == X)
-          return typx[type].oncity || own[targetCell] != p.num;
+          return canMoveInto(u, targetCell) || own[targetCell] != p.num;
       if (typ[targetCell] == T && own[targetCell] == p.num)
-          return type == A;
+          return u.typ == A;
       if (typ[targetCell] == C && own[targetCell] == p.num)
-          return type == F && !full(fnduni(targetloc));
+          return u.typ == F && !full(fnduni(targetloc));
       return false;
     }
 
@@ -1577,16 +1588,14 @@ struct Player
 	    return(false);			// it's enemy
       ab = .map[u.loc];			// see where we are
       type = u.typ;			// what's our unit type?
-      if (ac == MAPsea)
-          return typx[type].onsea;
-      if (ac == MAPland)
-          return typx[type].onland;
+      if (ac == MAPsea || ac == MAPland)
+          return canMoveInto(u, ac);
       if (typ[ac] == X && own[ac] == p.num)
       {   if (u.ifo == IFOloadarmy)	// if computer strategy
 		return(false);
 	    if (aboard(u))			// if T (C) with As (Fs) aboard
 		return(false);
-	    return typx[type].oncity;
+	    return canMoveInto(u, ac);
       }
       if (typ[ac] == T && type == A)
       {
