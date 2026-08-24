@@ -33,14 +33,14 @@ uint noflush = 0;			/* if non-zero then don't flush	*/
 
 immutable Type[TYPMAX] typx =
 [
-	{  5, 6,'A', 0, "Army"},
-	{ 10,12,'F',20, "Fighter"},
-	{ 20,24,'D', 3, "Destroyer"},
-	{ 30,36,'T', 3, "Troop transport"},
-	{ 25,30,'S', 2, "Submarine"},
-	{ 50,60,'R', 8, "Cruiser"},
-	{ 60,72,'C', 8, "Aircraft carrier"},
-	{ 75,90,'B',12, "Battleship"},
+	{  5, 6,'A', 0, "Army", true, false, false},
+	{ 10,12,'F',20, "Fighter", true, true, true},
+	{ 20,24,'D', 3, "Destroyer", false, true, true},
+	{ 30,36,'T', 3, "Troop transport", false, true, true},
+	{ 25,30,'S', 2, "Submarine", false, true, true},
+	{ 50,60,'R', 8, "Cruiser", false, true, true},
+	{ 60,72,'C', 8, "Aircraft carrier", false, true, true},
+	{ 75,90,'B',12, "Battleship", false, true, true},
 ];
 
 

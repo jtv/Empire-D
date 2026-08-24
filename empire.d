@@ -213,6 +213,9 @@ struct Type
 			// for computer strategy)
     immutable(char)* name;	// full name ("Army", "Fighter", etc.),
 				// for display purposes
+    bool onland;	// Can move into land.
+    bool onsea;		// Can move into sea.
+    bool oncity;	// Can move into a city.
 }
 
 enum

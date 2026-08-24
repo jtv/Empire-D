@@ -315,7 +315,7 @@ struct Player
        * Watch out for an A on a T attempting to attack a ship
        */
 
-      if (type == A && sea[ac] &&
+      if (!typx[type].onsea && sea[ac] &&
 	    .typ[ab] == T && r2 != -1)
       {   d.drown(u);			// can't do this!
 	    killit(u);
@@ -362,23 +362,13 @@ struct Player
 	     * the attacker where it started.
 	     */
 
-	    if ((type == A && ac == MAPsea) ||
-		(type >= D && ac != MAPsea))
+	    if ((ac == MAPsea && !typx[type].onsea) ||
+		(ac == MAPland && !typx[type].onland) ||
+		(ac == MAPcity && !typx[type].oncity))
 	    {   eomove(u.loc);		// sensor probe of loc we attacked
 		u.loc = locold;		// stay put, don't move in
-		switch (type)
-		{
-		case T, C, D, S, R, B:
-		    if (!p.turns && u.hit > typx[type].hittab / 2)
-		    {
-			p.turns++;
-			return true;
-		    }
-		    break;
-		default:
-		    break;
-		}
-		return false;		// all done
+		// Continue below so a ship that attacked an army can still
+		// move the rest of its turn.
 	    }
       }
 
@@ -1413,29 +1403,24 @@ struct Player
       ab = .map[u.loc];			// see where we are
       ac = .map[z6];			// see where we are going
       type = u.typ;			// what's our unit type?
-      if (type == A)			// if dealing with an A
-      {   if (ac == MAPland)		// if '+'
-		return true;
-	    if (typ[ac] == X)		// if attacking a city
-		return own[ac] != p.num;	// ok if not our own city
-	    if (r2 == -1)			// if staying put
-		return true;
-	    if (typ[ab] == T && sea[ac])	// can't move from T onto sea
-		    return false;
-	    if ((typ[ac] >= A) && (own[ac] != p.num))
-		return true;		// ok if enemy
-	    return typ[ac] == T && !full(fnduni(z6));	// not full T
-      }
-      if (ac == MAPsea)			// if '~'
+      if (r2 == -1)			// Staying in place after attacking.
 	    return true;
       if ((typ[ac] >= A) && (own[ac] != p.num))
 	    return true;			// it's enemy
-      if (typ[ac] == X && own[ac] == p.num) // if owned city
-	    return !aboard(u);	// false if T (C) with As (Fs) aboard
-      if (type == F &&
-	    (ac == MAPland || (typ[ac] == C && !full(fnduni(z6)) )) )
+      if (typ[ac] == X)
+	    return own[ac] != p.num || (typx[type].oncity && !aboard(u));
+      if (ac == MAPsea)
+            return typx[type].onsea ||
+	    	(typ[ab] == T && type == A && !typx[type].onsea);
+      if (ac == MAPland)
+            return typx[type].onland;
+      if (typ[ac] == T && type == A)
+            return !full(fnduni(z6));
+      if (typ[ac] == C && type == F)
+            return !full(fnduni(z6));
+      if (typ[ac] >= A && own[ac] != p.num)
 	    return true;
-      return r2 == -1;			// ok only if stay in place
+      return false;
     }
 
 
@@ -1553,38 +1538,17 @@ struct Player
       targetCell = .map[targetloc];	// see what's at the target location
       type = u.typ;			// what's our unit type?
 
-      if (type == A)			// if dealing with an Army
-      {	  if (targetCell == MAPland)	// if target is land
-		return true;
-	  if (targetCell == MAPcity)	// unowned city is OK
-		return true;
-	  if (typ[targetCell] == X && own[targetCell] == p.num) // owned city is OK
-		return true;
-	  if (typ[targetCell] == T && own[targetCell] == p.num) // friendly transport is OK
-		return true;
-	  if (targetCell == MAPsea)	// Army can't go to sea
-		return false;
-	  return false;			// anything else is invalid
-      }
-
-      if (targetCell == MAPsea)	// sea units can move to sea
-	  return true;
-
-      if (targetCell == MAPcity || (typ[targetCell] == X && own[targetCell] == p.num))
-	  return true;			// any unit can move to a city
-
-      if (type == F)			// if Fighter
-      {	  if (targetCell == MAPland)	// can move to land
-		return true;
-	  if (typ[targetCell] == C && own[targetCell] == p.num) // or friendly carrier
-		return true;
-	  return false;
-      }
-
-      if (targetCell == MAPland)	// transport/submarine can move to land
-	  return true;
-
-      return false;			// anything else is invalid
+      if (targetCell == MAPsea)
+          return typx[type].onsea;
+      if (targetCell == MAPland)
+          return typx[type].onland;
+      if (typ[targetCell] == X)
+          return typx[type].oncity || own[targetCell] != p.num;
+      if (typ[targetCell] == T && own[targetCell] == p.num)
+          return type == A;
+      if (typ[targetCell] == C && own[targetCell] == p.num)
+          return type == F && !full(fnduni(targetloc));
+      return false;
     }
 
     /**********************************
@@ -1610,35 +1574,27 @@ struct Player
 	    return(false);			// it's enemy
       ab = .map[u.loc];			// see where we are
       type = u.typ;			// what's our unit type?
-      if (type == A)			// if dealing with an A
-      {   Unit *ut;
-
-	    if (ac == MAPland)		// if '+'
-		return(true);
-	    if ((typ[ab] == T) && sea[ac])	// can't move from T onto sea
-		return(false);
-	    if (typ[ac] != T)		// if it's not an owned T
-		return(false);
-	    ut = fnduni(z6);
-	    if (!p.human &&
-		u.hit < typx[T].hittab &&
-		u.ifo == IFOdamaged)
-		return false;		// don't get on damaged T
-
-	    return !full(ut);		// can't get on it it's full
-      }
-      if (ac == MAPsea)			// if '~'
-	    return(true);
-      if (typ[ac] == X && own[ac] == p.num) // if owned city
+      if (ac == MAPsea)
+          return typx[type].onsea;
+      if (ac == MAPland)
+          return typx[type].onland;
+      if (typ[ac] == X && own[ac] == p.num)
       {   if (u.ifo == IFOloadarmy)	// if computer strategy
 		return(false);
 	    if (aboard(u))			// if T (C) with As (Fs) aboard
 		return(false);
-	    return(true);			// can move into city
+	    return typx[type].oncity;
       }
-      if (type == F &&
-	    (ac == MAPland || (typ[ac] == C && !full(fnduni(z6)) )) )
-	    return true;
+      if (typ[ac] == T && type == A)
+      {
+          if (!p.human &&
+	      u.hit < typx[T].hittab &&
+	      u.ifo == IFOdamaged)
+	      return false;
+	  return !full(fnduni(z6));
+      }
+      if (typ[ac] == C && type == F)
+          return !full(fnduni(z6));
       return false;
     }
 
