@@ -192,7 +192,7 @@ int border(loc_t loc)
 
   r1 = ROW(loc);
   c1 = COL(loc);
-  return ((r1 == 0) || (r1 == Mrowmx) || (c1 == 0) || (c1 == Mcolmx));
+  return (r1 == 0) || (r1 == Mrowmx) || (c1 == 0) || (c1 == Mcolmx);
 }
 
 /**********************************

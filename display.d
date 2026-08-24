@@ -139,7 +139,7 @@ struct Display
         if (row > Mrowmx - rowsize) row = Mrowmx - rowsize;
         if (col < 0) col = 0;
         if (col > Mcolmx - colsize) col = Mcolmx - colsize;
-        return (row * (Mcolmx + 1) + col);	// return adjusted value
+        return row * (Mcolmx + 1) + col;	// return adjusted value
     }
 
     void initialize()

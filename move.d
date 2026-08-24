@@ -345,13 +345,13 @@ int sursea(Unit *u)
 
   loc = u.loc;
   if ((u.typ != A) || (typ[.map[loc]] != T))
-	return(false);
+	return false;
   for (i = 8; i--;)
   {	ac = .map[loc + arrow(i)];	/* ltr map value		*/
 	if ((land[ac] || typ[ac] == X) && own[ac] != u.own)
-	    return(false);		/* found land or unowned city	*/
+	    return false;		/* found land or unowned city	*/
   }
-  return(true);				/* guess it must be so		*/
+  return true;				/* guess it must be so		*/
 }
 
 

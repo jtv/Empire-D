@@ -1464,7 +1464,7 @@ struct Player
 
       if (eneltr(loc))			// if enemies in ltr
       {   u.ifo = 0;			// wake up
-	    return(false);			// caller must pick move
+	    return false;			// caller must pick move
       }
 
       /*
@@ -1482,21 +1482,21 @@ struct Player
 
 	if (type == A &&			// if army and
 	  citltr(loc,pr2))			// unowned city in ltr
-		return(false);		// caller must pick move
+		return false;		// caller must pick move
 
 	switch (ifo)
 	{   case fnAW:
-		return(false);		// caller picks move
+		return false;		// caller picks move
 
 	    case fnSE:
 		*pr2 = -1;			// stay put
-		return(true);
+		return true;
 
 	    case fnRA:
 		if (type == A)		// if army
 		    if (tltr(loc,pr2))	// if a T to get on
 		    {   u.ifo = 0;		// wake up
-			return(true);
+			return true;
 		    }
 		*pr2 = empire.random(8);		// pick a move at random
 		if (around(u,pr2))		// if we got a move
@@ -1507,7 +1507,7 @@ struct Player
 		*pr2 = movdir(loc,ila);	// move from loc to ila
 		if (*pr2 == -1)		// if arrived at ila
 		{   u.ifo = 0;		// wake up
-		    return(false);
+		    return false;
 		}
 		return p.okmove(u,*pr2);	// if move is allright
 
@@ -1516,7 +1516,7 @@ struct Player
 	    di2:
 		assert(*pr2 >= -1 && *pr2 <= 7);
 		if (border(loc + arrow(*pr2)))	// if trial move is bad
-		    return(false);
+		    return false;
 		if (type == F)				// if fighter
 		    if (u.hit == typx[F].hittab/2)	// at 1/2 range
 			return false;	// temporarilly wake up
@@ -1525,7 +1525,7 @@ struct Player
 	    case fnFI:
 		if (full(u))		// if T or C is full
 		{   u.ifo = 0;		// wake up
-		    return(false);
+		    return false;
 		}
 		*pr2 = -1;			// stay put
 		return true;
@@ -1582,19 +1582,19 @@ struct Player
       assert(!(r2 & ~7));
       z6 = u.loc + arrow(r2);		// see where we're going
       if (border(z6))			// if on edge
-	    return(false);
+	    return false;
       ac = .map[z6];			// see where we are going
       if ((typ[ac] >= A) && (own[ac] != p.num))
-	    return(false);			// it's enemy
+	    return false;			// it's enemy
       ab = .map[u.loc];			// see where we are
       type = u.typ;			// what's our unit type?
       if (ac == MAPsea || ac == MAPland)
           return canMoveInto(u, ac);
       if (typ[ac] == X && own[ac] == p.num)
       {   if (u.ifo == IFOloadarmy)	// if computer strategy
-		return(false);
+		return false;
 	    if (aboard(u))			// if T (C) with As (Fs) aboard
-		return(false);
+		return false;
 	    return canMoveInto(u, ac);
       }
       if (typ[ac] == T && type == A)
@@ -1709,7 +1709,7 @@ struct Player
 	for (r2 = 8; r2--;)
 	{   ab = .map[loc + arrow(r2)];
 	    if (typ[ab] >= A && own[ab] != num)
-		return(true);
+		return true;
 	}
 	return false;
     }
@@ -1736,7 +1736,7 @@ struct Player
 	{   ab = .map[loc + arrow(i)];
 	    if (typ[ab] == X && own[ab] != num)
 	    {   *pr2 = i;				// return direction of city
-		return(true);
+		return true;
 	    }
 	}
 	return false;
