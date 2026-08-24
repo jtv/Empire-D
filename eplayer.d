@@ -1406,7 +1406,10 @@ struct Player
       if (r2 == -1)			// Staying in place after attacking.
 	    return true;
       if ((typ[ac] >= A) && (own[ac] != p.num))
+      {   if (type == A && typ[ab] == T && typ[ac] >= D)
+		return false;		// embarked army can't attack ships
 	    return true;			// it's enemy
+      }
       if (typ[ac] == X)
 	    return own[ac] != p.num || (typx[type].oncity && !aboard(u));
       if (ac == MAPsea)
