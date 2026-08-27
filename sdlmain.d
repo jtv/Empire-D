@@ -255,15 +255,10 @@ private void computeDispSize(out int rows, out int cols)
 // termio.d's ncurses colour pairs use (COLOR_RED, COLOR_BLUE, ...).
 private immutable SDL_Color COLOUR_BLACK = SDL_Color(0, 0, 0, 255);
 private immutable SDL_Color COLOUR_WHITE = SDL_Color(255, 255, 255, 255);
-private immutable SDL_Color COLOUR_SEA   = SDL_Color(0, 0, 170, 255);
-private immutable SDL_Color COLOUR_LAND  = SDL_Color(0, 170, 0, 255);
+private immutable SDL_Color COLOUR_SEA   = SDL_Color(0, 0, 130, 255);
+private immutable SDL_Color COLOUR_LAND  = SDL_Color(0, 130, 0, 255);
 private immutable SDL_Color COLOUR_CITY  = SDL_Color(128, 128, 128, 255);
 
-// Background for the cursor cell in Survey/From/To mode -- the SDL
-// equivalent of textmain.d's cyanBg ("\033[46m"), used there instead
-// of plain reverse video while the player's picking a survey target
-// or a move's source/destination.
-private immutable SDL_Color COLOUR_CYAN  = SDL_Color(0, 170, 170, 255);
 private immutable SDL_Color[7] playerColour = [
     COLOUR_WHITE,				// no player 0 (unused)
     SDL_Color(255, 85, 85, 255),		// player 1: red
@@ -307,13 +302,15 @@ private void drawText(int x, int y, const(char)* str, SDL_Color color)
 }
 
 private SDL_Texture* getGlyphTexture(char ch, SDL_Color colour,
-    out int width, out int height)
+    bool bold, out int width, out int height)
 {
     ulong key = cast(ulong) ch;
     key |= cast(ulong) colour.r << 8;
     key |= cast(ulong) colour.g << 16;
     key |= cast(ulong) colour.b << 24;
     key |= cast(ulong) colour.a << 32;
+    if (bold)
+	key |= cast(ulong) 1 << 40;
 
     if (auto cached = key in glyphCache)
     {
@@ -326,8 +323,13 @@ private SDL_Texture* getGlyphTexture(char ch, SDL_Color colour,
     buf[0] = ch;
     buf[1] = '\0';
 
+    int oldStyle = TTF_GetFontStyle(font);
+    if (bold)
+	TTF_SetFontStyle(font, oldStyle | TTF_STYLE_BOLD);
     SDL_Surface* surface =
         TTF_RenderText_Solid(font, buf.ptr, colour);
+    if (bold)
+	TTF_SetFontStyle(font, oldStyle);
     if (surface is null)
     {
         width = height = 0;
@@ -398,7 +400,7 @@ private bool ensureFrameTexture()
  */
 private void drawCell(int x, int y, int cellWidth, int cellHeight,
     char ch, SDL_Color colour, SDL_Color background, bool highlighted,
-    bool cyanHighlight = false)
+    bool cyanHighlight = false, bool bold = false)
 {
     SDL_Rect rect;
     rect.x = x;
@@ -410,20 +412,31 @@ private void drawCell(int x, int y, int cellWidth, int cellHeight,
     SDL_RenderFillRect(renderer, &rect);
 
     SDL_Colour glyphColour = (highlighted || cyanHighlight)
-    	? background : colour;
+	? background : colour;
     int glyphWidth;
     int glyphHeight;
     SDL_Texture* texture =
-    	getGlyphTexture(ch, glyphColour, glyphWidth, glyphHeight);
+	getGlyphTexture(ch, glyphColour, bold, glyphWidth, glyphHeight);
     if (texture is null)
-    	return;
+	return;
 
     SDL_Rect dst;
     dst.x = x;
     dst.y = y;
     dst.w = glyphWidth;
     dst.h = glyphHeight;
+
+    // Bold glyphs can be slightly wider than the regular glyph.  Keep every
+    // map field exactly one character cell wide.
+    SDL_Rect clip;
+    clip.x = x;
+    clip.y = y;
+    clip.w = cellWidth;
+    clip.h = cellHeight;
+
+    SDL_RenderSetClipRect(renderer, &clip);
     SDL_RenderCopy(renderer, texture, null, &dst);
+    SDL_RenderSetClipRect(renderer, null);
 }
 
 /*
@@ -496,6 +509,7 @@ private struct MapCell
     char ch;
     SDL_Color colour;
     SDL_Colour background;
+    bool bold;
     bool highlighted;
     bool cyanHighlight;	// Survey/From/To mode cursor -- see drawCell().
 }
@@ -531,6 +545,7 @@ private MapCell mapCellAppearance(Player* human, int loc,
         {
             cell.ch = typx[human.usv.typ].unichr;
             cell.colour = playerColour[human.usv.own];
+	    cell.bold = true;
             cell.highlighted = true;
         }
         else
@@ -570,6 +585,7 @@ private MapCell mapCellAppearance(Player* human, int loc,
             int t = typ[v];
             cell.ch = (t == X) ? 'O' : typx[t].unichr;
             cell.colour = playerColour[own[v]];
+	    cell.bold = true;
             break;
     }
 
@@ -622,7 +638,7 @@ private void drawMap(int lineSkip, SDL_Color textColour)
     // this just before the production dialog goes up, to scroll the city it's
     /// about to prompt about away from under the dialog box.
     int c0 = (columnOriginOverride >= 0)
-    	? columnOriginOverride
+	? columnOriginOverride
 	: COL(human.curloc) - terrainCols / 2;
     if (c0 < 0) c0 = 0;
     if (c0 > Mcolmx + 1 - terrainCols) c0 = Mcolmx + 1 - terrainCols;
@@ -646,10 +662,10 @@ private void drawMap(int lineSkip, SDL_Color textColour)
             int loc = (r0 + r) * (Mcolmx + 1) + (c0 + c);
 
 	    MapCell cell =
-	    	mapCellAppearance(human, loc, textColour, blinkOn);
+		mapCellAppearance(human, loc, textColour, blinkOn);
 	    drawCell(x, y, charWidth, lineSkip,
-	    	cell.ch, cell.colour, cell.background, cell.highlighted,
-		cell.cyanHighlight);
+		cell.ch, cell.colour, cell.background, cell.highlighted,
+		cell.cyanHighlight, cell.bold);
         }
     }
 
@@ -1379,7 +1395,7 @@ extern (C) bool sdlInputWait(int timeout)
                 processSDLEvent(event, human);
 
 	    if (quit)
-	    	return true;
+		return true;
         }
 
         // A key delivered above will wake TTin() through TTunget(), but
@@ -1436,7 +1452,7 @@ int main(string[] args)
     mainWindow = window;
 
     renderer = SDL_CreateRenderer(window, -1,
-    	SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);
+	SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);
     if (renderer is null)
     {
         stderr.writefln("SDL_CreateRenderer failed: %s", SDL_GetError().fromStringz);
@@ -1450,7 +1466,7 @@ int main(string[] args)
 	    SDL_DestroyTexture(frameTexture);
     }
     scope (exit)
-    	clearGlyphCache();
+	clearGlyphCache();
 
     // Text rendering is best-effort: if SDL_ttf won't load or no
     // candidate font opens, font just stays null and win_flush() skips
