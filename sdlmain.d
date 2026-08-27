@@ -65,7 +65,7 @@ import display : Display;
 import maps : revealUnderneath, RevealKind;
 import ruler : rulerLine, rowRulerLabel, ROW_RULER_WIDTH;
 import text : VBUFROWS, vbuffer;
-import var : typx, typ, own, findTypeByChar;
+import var : typx, typ, own, land, city, findTypeByChar;
 
 // Hard-wired for now: 1 human player + 1 computer player. Same as
 // textmain.d -- see that file's module comment for why this should
@@ -257,6 +257,7 @@ private immutable SDL_Color COLOUR_BLACK = SDL_Color(0, 0, 0, 255);
 private immutable SDL_Color COLOUR_WHITE = SDL_Color(255, 255, 255, 255);
 private immutable SDL_Color COLOUR_SEA   = SDL_Color(0, 0, 170, 255);
 private immutable SDL_Color COLOUR_LAND  = SDL_Color(0, 170, 0, 255);
+private immutable SDL_Color COLOUR_CITY  = SDL_Color(128, 128, 128, 255);
 
 // Background for the cursor cell in Survey/From/To mode -- the SDL
 // equivalent of textmain.d's cyanBg ("\033[46m"), used there instead
@@ -404,23 +405,21 @@ private bool ensureFrameTexture()
  * than switching to black.
  */
 private void drawCell(int x, int y, int cellWidth, int cellHeight,
-    char ch, SDL_Color colour, bool highlighted, bool cyanHighlight = false)
+    char ch, SDL_Color colour, SDL_Color background, bool highlighted,
+    bool cyanHighlight = false)
 {
-    if (highlighted || cyanHighlight)
-    {
-        SDL_Rect rect;
-        rect.x = x;
-        rect.y = y;
-        rect.w = cellWidth;
-        rect.h = cellHeight;
-        SDL_Color bg = cyanHighlight ? COLOUR_CYAN : colour;
-        SDL_SetRenderDrawColor(renderer, bg.r, bg.g, bg.b, 255);
-        SDL_RenderFillRect(renderer, &rect);
-    }
+    SDL_Rect rect;
+    rect.x = x;
+    rect.y = y;
+    rect.w = cellWidth;
+    rect.h = cellHeight;
+    SDL_Color bg = cyanHighlight ? COLOUR_CYAN
+    	: highlighted ? colour
+	: background;
+    SDL_SetRenderDrawColor(renderer, bg.r, bg.g, bg.b, 255);
+    SDL_RenderFillRect(renderer, &rect);
 
-    SDL_Colour glyphColour = highlighted
-    	? COLOUR_BLACK
-	: colour;
+    SDL_Colour glyphColour = highlighted ? background : colour;
     int glyphWidth;
     int glyphHeight;
     SDL_Texture* texture =
@@ -505,14 +504,33 @@ private struct MapCell
 {
     char ch;
     SDL_Color colour;
+    SDL_Colour background;
     bool highlighted;
     bool cyanHighlight;	// Survey/From/To mode cursor -- see drawCell().
 }
+
+
+private SDL_Color mapCellBackground(Player* human, int loc)
+{
+    if (human.map[loc] == MAPunknown)
+	return COLOUR_BLACK;
+
+    // A city retains the standard city background colour even when it's being
+    // displayed with a unit on top of it.
+    foreach (ref c; city)
+    {
+	if (c.loc && c.loc == loc)
+	    return COLOUR_CITY;
+    }
+    return land[human.map[loc]] ? COLOUR_LAND : COLOUR_SEA;
+}
+
 
 private MapCell mapCellAppearance(Player* human, int loc,
     SDL_Color textColour, bool blinkOn)
 {
     MapCell cell;
+    cell.background = mapCellBackground(human, loc);
 
     bool moving = (human.mode == mdMOVE && human.usv !is null &&
         loc == human.usv.loc);
@@ -551,11 +569,11 @@ private MapCell mapCellAppearance(Player* human, int loc,
             break;
         case MAPsea:
             cell.ch = '~';
-            cell.colour = COLOUR_SEA;
+            cell.colour = textColour;
             break;
         case MAPland:
             cell.ch = '+';
-            cell.colour = COLOUR_LAND;
+            cell.colour = textColour;
             break;
         default:
             int t = typ[v];
@@ -639,7 +657,8 @@ private void drawMap(int lineSkip, SDL_Color textColour)
 	    MapCell cell =
 	    	mapCellAppearance(human, loc, textColour, blinkOn);
 	    drawCell(x, y, charWidth, lineSkip,
-	    	cell.ch, cell.colour, cell.highlighted, cell.cyanHighlight);
+	    	cell.ch, cell.colour, cell.background, cell.highlighted,
+		cell.cyanHighlight);
         }
     }
 
@@ -705,7 +724,7 @@ private void redrawMovingUnit(Player *human)
     SDL_Rect rect = SDL_Rect(x, y, charWidth, lineSkip);
     SDL_RenderFillRect(renderer, &rect);
     drawCell(x, y, charWidth, lineSkip, cell.ch, cell.colour,
-        cell.highlighted);
+        cell.background, cell.highlighted, cell.cyanHighlight);
     SDL_SetRenderTarget(renderer, null);
     SDL_RenderCopy(renderer, frameTexture, null, null);
     SDL_RenderPresent(renderer);
