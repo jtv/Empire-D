@@ -391,18 +391,10 @@ private bool ensureFrameTexture()
 /*
  * Draw one map cell's glyph at the given screen position, in colour,
  * with an optional reverse-video style highlight (used for the cursor
- * cell outside Survey/From/To mode) -- the SDL equivalent of the
- * ncurses version's color_set() plus attron(A_REVERSE)/
- * attroff(A_REVERSE) around mvaddch(). SDL has no terminal-style
- * "reverse video" attribute, so it's faked here: fill the cell with
- * its own colour, then draw the glyph over that in the background
- * colour instead of drawing the glyph in its colour over the
- * (already black) background.
- *
- * cyanHighlight is the alternative cursor style textmain.d uses for
- * Survey/From/To mode (its cyanBg): the cell gets a flat cyan
- * background instead, and the glyph keeps its normal colour rather
- * than switching to black.
+ * cell, including Survey or From/To mode).  SDL has no terminal-style
+ * "reverse video" attribute, so we do this ourselves: fill the cell with
+ * the foreground colour, then draw the glyph in its normal background
+ * colour.
  */
 private void drawCell(int x, int y, int cellWidth, int cellHeight,
     char ch, SDL_Color colour, SDL_Color background, bool highlighted,
@@ -413,13 +405,12 @@ private void drawCell(int x, int y, int cellWidth, int cellHeight,
     rect.y = y;
     rect.w = cellWidth;
     rect.h = cellHeight;
-    SDL_Color bg = cyanHighlight ? COLOUR_CYAN
-    	: highlighted ? colour
-	: background;
+    SDL_Color bg = (highlighted || cyanHighlight) ? colour : background;
     SDL_SetRenderDrawColor(renderer, bg.r, bg.g, bg.b, 255);
     SDL_RenderFillRect(renderer, &rect);
 
-    SDL_Colour glyphColour = highlighted ? background : colour;
+    SDL_Colour glyphColour = (highlighted || cyanHighlight)
+    	? background : colour;
     int glyphWidth;
     int glyphHeight;
     SDL_Texture* texture =
