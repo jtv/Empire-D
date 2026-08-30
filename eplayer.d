@@ -790,6 +790,11 @@ struct Player
 		    done(1);
 		    goto case;
 	    case ' ':			// stay put
+		    // XXX: Is this the right way to get the unit's location?
+		    if (!canMoveInto(u, .map[u.loc]))
+		    {   p.cantstayhere();		// show error message
+			    goto cmdscn;	// give him another chance
+		    }
 		    *pr2 = -1;
 		    if (p.mode == mdMOVE)
 		    {   if (!p.seeifok(u,*pr2))	// if move is destructive
@@ -1327,6 +1332,18 @@ struct Player
 	Text *t = &display.text;
 	t.bell();
 	t.cmes(t.DS(3),"This unit can't move here.\1\2");
+    }
+
+
+    /*****************************
+     * Unit cannot remain where it is.
+     */
+
+    void cantstayhere()
+    {
+	Text *t = &display.text;
+	t.bell();
+	t.cmes(t.DS(3), "This unit can't stay here.\1\2");
     }
 
 
