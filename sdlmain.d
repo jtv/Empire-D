@@ -271,6 +271,27 @@ private immutable SDL_Color[7] playerColour = [
     SDL_Color(85, 255, 85, 255),		// player 6: green
 ];
 
+// How much to dim the "reveal underneath" half of the moving-unit blink
+// (see mapCellAppearance()'s !blinkOn branch below). Land's colour
+// (0, 130, 0) and the human player's red (255, 85, 85) are similar
+// enough in luminance that alternating between them reads as a hue
+// change rather than a flash -- much harder to spot at a glance than
+// the sea case, where the reverse-video red against near-black navy
+// is unmistakable. Darkening the revealed colour (same hue, lower
+// brightness) restores a strong brightness step against the
+// reverse-video block regardless of what's underneath, without
+// touching how that cell looks anywhere else on the map.
+private enum float MOVING_UNIT_DIM_FACTOR = 0.45;
+
+private SDL_Color dimColour(SDL_Color c, float factor)
+{
+    return SDL_Color(
+        cast(ubyte)(c.r * factor),
+        cast(ubyte)(c.g * factor),
+        cast(ubyte)(c.b * factor),
+        c.a);
+}
+
 
 /*
  * Render one line of text (nul-terminated, as vbuffer[] rows and the
@@ -556,9 +577,14 @@ private MapCell mapCellAppearance(Player* human, int loc,
             int rowner;
             auto kind = revealUnderneath(human.usv, rch, rowner);
             cell.ch = rch;
-            cell.colour = (kind == RevealKind.terrain)
+            SDL_Color revealColour = (kind == RevealKind.terrain)
                 ? (rch == '~' ? COLOUR_SEA : COLOUR_LAND)
                 : (rowner ? playerColour[rowner] : textColour);
+            // Dim both the glyph and its background so this cell reads
+            // as a darker version of whatever's really there -- see
+            // MOVING_UNIT_DIM_FACTOR above.
+            cell.colour = dimColour(revealColour, MOVING_UNIT_DIM_FACTOR);
+            cell.background = dimColour(cell.background, MOVING_UNIT_DIM_FACTOR);
             cell.highlighted = false;
         }
         return cell;
