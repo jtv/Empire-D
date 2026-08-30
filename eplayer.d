@@ -1466,8 +1466,7 @@ struct Player
 	    return (own[ac] != p.num && type == A) ||
 		    (canMoveInto(u, ac) && !aboard(u));
       if (ac == MAPsea)
-            return canMoveInto(u, ac) ||
-	    	(typ[ab] == T && type == A && !typx[type].onsea);
+            return canMoveInto(u, ac);
       if (ac == MAPland)
             return canMoveInto(u, ac);
       if (typ[ac] == T && type == A)
