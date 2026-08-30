@@ -256,7 +256,9 @@ private void computeDispSize(out int rows, out int cols)
 private immutable SDL_Color COLOUR_BLACK = SDL_Color(0, 0, 0, 255);
 private immutable SDL_Color COLOUR_WHITE = SDL_Color(255, 255, 255, 255);
 private immutable SDL_Color COLOUR_SEA   = SDL_Color(0, 0, 130, 255);
+private immutable SDL_Color COLOUR_SEA_MARKER = SDL_Color(85, 170, 255, 255);
 private immutable SDL_Color COLOUR_LAND  = SDL_Color(0, 130, 0, 255);
+private immutable SDL_Color COLOUR_LAND_MARKER = SDL_Color(0, 85, 0, 255);
 private immutable SDL_Color COLOUR_CITY  = SDL_Color(128, 128, 128, 255);
 
 private immutable SDL_Color[7] playerColour = [
@@ -575,11 +577,11 @@ private MapCell mapCellAppearance(Player* human, int loc,
             break;
         case MAPsea:
             cell.ch = '~';
-            cell.colour = textColour;
+            cell.colour = COLOUR_SEA_MARKER;
             break;
         case MAPland:
             cell.ch = '+';
-            cell.colour = textColour;
+            cell.colour = COLOUR_LAND_MARKER;
             break;
         default:
             int t = typ[v];
