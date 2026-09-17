@@ -790,10 +790,20 @@ struct Player
 		    done(1);
 		    goto case;
 	    case ' ':			// stay put
-		    // XXX: Is this the right way to get the unit's location?
-		    if (!canMoveInto(u, .map[u.loc]))
-		    {   p.cantstayhere();		// show error message
-			    goto cmdscn;	// give him another chance
+	    	    {
+		    	// .map[] holds the occupant's code once a unit has
+			// moved onto a plain sea/land square (see change()),
+			// not the MAPsea/MAPland terrain sentinel.  But
+			// canMoveInto() only understands MAPsea, MAPland, or a
+			// city (X).  Feed it the underlying terrain instead of
+			// the occupant code, unless we're sitting in a city.
+			int ab = .map[u.loc];
+			if (typ[ab] != X)
+			    ab = land[ab] ? MAPland : MAPsea;
+		    	if (!canMoveInto(u, ab))
+		    	{   p.cantstayhere();		// show error message
+			    	goto cmdscn;	// give him another chance
+		    	}
 		    }
 		    *pr2 = -1;
 		    if (p.mode == mdMOVE)
