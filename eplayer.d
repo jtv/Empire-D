@@ -274,7 +274,8 @@ struct Player
 	    e = p.evalu8(u,r2);
       } while (e);
 
-      if (u.loc && u.own == p.num)
+      if (u.loc && u.own == p.num &&
+          !(p.human && u.ifo == fnSE))  // (Don't print sentries.)
           p.display.headng(u);		// Update heading, e.g. fuel left.
 
       p.turns = 0;				// reset
