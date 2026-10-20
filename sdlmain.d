@@ -1440,21 +1440,28 @@ extern (C) bool sdlInputWait(int timeout)
 int main(string[] args)
 {
     string loadFile;
+    int fontSize = 16;
 
     auto helpInfo = getopt(args,
-        "load|l", "Load a previously saved game from FILE.", &loadFile);
+        "load|l", "Load a previously saved game from FILE.", &loadFile,
+        "size|s", "Font size in points (default 16).", &fontSize);
     if (helpInfo.helpWanted)
     {
 	defaultGetoptPrinter("Empire (SDL2 frontend)\n\n" ~
-	    "Usage: empire-sdl [--load=FILE]\n",
+	    "Usage: empire-sdl [--load=FILE] [--size=POINTS]\n",
 	    helpInfo.options);
 	return 0;
+    }
+    if (fontSize < 8)
+    {
+	stderr.writefln("Font size %d is too small.", fontSize);
+	return 1;
     }
 
     immutable SDLSupport loaded = loadSDL();
     if (loaded != sdlSupport)
     {
-        stderr.writeln("Failed to load SDL2. Is libSDL2 installed?");
+        stderr.writeln("Failed to load SDL2.  Is libSDL2 installed?");
         return 1;
     }
 
@@ -1509,7 +1516,7 @@ int main(string[] args)
     {
 	stderr.writeln("TTF_Init() failed; can't draw text area.");
     }
-    else if ((font = openMonoFont(16)) is null)
+    else if ((font = openMonoFont(fontSize)) is null)
     {
 	stderr.writeln("No monospace font found; vbuffer text won't be drawn.");
     }

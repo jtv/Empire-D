@@ -21,6 +21,7 @@ import core.stdc.string : memset, strcat;
 import core.stdc.time;
 import core.thread : Thread;
 import core.time : dur;
+import std.algorithm.comparison : min;
 
 import empire;
 import eplayer;
@@ -772,6 +773,9 @@ struct Display
 	}
 	else
 	{
+	    // Column numbers are stored as a single byte, so allowing more
+	    // would cause overflows.
+	    cols = min(cols, 256);
 	    text.narrow = (cols < 75);	// use 40 column formatting
 	    if (text.narrow)
 		Smin = (5 * 256) + 0;		// u l edge of map
